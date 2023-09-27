@@ -4,14 +4,15 @@
 		"@types/node": "^14"
 	},
 	"dependencies": {
-		"typescript": "^4.0.0",
+		"@kubernetes/client-node": "^0.19.0",
+		"@pulumi/aws": "5.42.0",
+		"@pulumi/command": "0.9.0",
+		"@pulumi/eks": "^1.0.0",
+		"@pulumi/kubernetes": "4.1.1",
 		"@pulumi/pulumi": "^3.0.0",
 		"@pulumi/random": "4.13.2",
 		"@pulumi/std": "1.4.0",
 		"@pulumiverse/time": "0.0.15",
-		"@pulumi/aws": "5.42.0",
-		"@pulumi/command": "0.9.0",
-		"@pulumi/kubernetes": "4.1.1",
-		"@pulumi/null": "0.0.1"
+		"typescript": "^4.0.0"
 	}
 }

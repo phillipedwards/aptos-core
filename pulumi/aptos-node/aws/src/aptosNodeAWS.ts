@@ -75,6 +75,11 @@ import { Network } from "./network";
 import { Kubernetes } from "./kubernetes";
 // import { Security } from "./security";
 
+/**
+ * Represents an AWS component resource for Aptos Node.
+ * @class
+ * @extends pulumi.ComponentResource
+ */
 export class AptosNodeAWS extends pulumi.ComponentResource {
 
     public readonly awsEipNatPublicIp: pulumi.Output<string>;

@@ -1,6 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
 import * as aws from "@pulumi/aws";
+import * as k8sClientLib from '@kubernetes/client-node';
 
 interface KubernetesConfig {
     eksCluster: aws.eks.Cluster;
@@ -10,6 +11,11 @@ interface KubernetesConfig {
 
 }
 
+/**
+ * Represents a Kubernetes resource that creates various Kubernetes resources such as StorageClass, Namespace, HelmRelease, etc.
+ * @class
+ * @extends pulumi.ComponentResource
+ */
 export class Kubernetes extends pulumi.ComponentResource {
     public readonly gp3StorageClass: k8s.storage.v1.StorageClass;
     public readonly io1StorageClass: k8s.storage.v1.StorageClass;
@@ -27,9 +33,35 @@ export class Kubernetes extends pulumi.ComponentResource {
     constructor(name: string, args: KubernetesConfig, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:Kubernetes", name, {}, opts);
 
+        const kubeconfig = new k8sClientLib.KubeConfig();
+        kubeconfig.loadFromOptions({
+            clusters: [
+                {
+                    name: String(args.eksCluster.name),
+                    server: String(args.eksCluster.endpoint),
+                    caData: String(args.eksCluster.certificateAuthority.data),
+                },
+            ],
+            contexts: [
+                {
+                    name: String(args.eksCluster.name),
+                    cluster: String(args.eksCluster.name),
+                    user: String(args.eksCluster.name),
+                },
+            ],
+            currentContext: String(args.eksCluster.name),
+            users: [
+                {
+                    name: String(args.eksCluster.name),
+                    token: String(args.eksCluster.identities.apply(identities => identities[0].oidcs?.[0]?.issuer)).split("id/")[1],
+                    authProvider: undefined,
+                    exec: undefined,
+                },
+            ],
+        })
+
         const provider = new k8s.Provider(`k8s`, {
-            kubeconfig: args.eksCluster.kubeconfig,
-            // kubeconfig: aws.eks.getCluster({ name: name }).then(cluster => cluster.certificateAuthorities?.),
+            kubeconfig: kubeconfig.exportConfig(),
         }, { parent: this });
 
         const gp3StorageClass = new k8s.storage.v1.StorageClass(`${name}-gp3-storage-class`, {
@@ -208,20 +240,5 @@ export class Kubernetes extends pulumi.ComponentResource {
         this.debuggersRoleBinding = debuggersRoleBinding;
         this.viewersRoleBinding = viewersRoleBinding;
         this.awsAuthConfigMap = awsAuthConfigMap;
-
-        this.registerOutputs({
-            gp3StorageClass: this.gp3StorageClass,
-            io1StorageClass: this.io1StorageClass,
-            io2StorageClass: this.io2StorageClass,
-            tigeraOperatorNamespace: this.tigeraOperatorNamespace,
-            calicoHelmRelease: this.calicoHelmRelease,
-            validatorHelmRelease: this.validatorHelmRelease,
-            loggerHelmRelease: this.loggerHelmRelease,
-            monitoringHelmRelease: this.monitoringHelmRelease,
-            debugClusterRole: this.debugClusterRole,
-            debuggersRoleBinding: this.debuggersRoleBinding,
-            viewersRoleBinding: this.viewersRoleBinding,
-            awsAuthConfigMap: this.awsAuthConfigMap,
-        });
     }
 }
