@@ -1,72 +1,128 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as gcp from "@pulumi/gcp";
+import * as random from "@pulumi/random";
 
 export interface AuthConfig {
-    clusterRoleName: pulumi.Input<string>;
-    clusterRolePolicy: pulumi.Input<string>;
-    clusterServiceAccountName: pulumi.Input<string>;
-    nodesRoleName: pulumi.Input<string>;
-    nodesRolePolicy: pulumi.Input<string>;
-    nodesInstanceProfileName: pulumi.Input<string>;
+    projectId: pulumi.Input<string>;
 }
 
 export class Auth extends pulumi.ComponentResource {
-    public readonly clusterRole: gcp.serviceaccount.Role;
-    public readonly clusterRolePolicyAttachment: gcp.serviceaccount.RoleIAMPolicyAttachment;
-    public readonly clusterServiceAccount: gcp.serviceaccount.Account;
-    public readonly nodesRole: gcp.serviceaccount.Role;
-    public readonly nodesRolePolicyAttachment: gcp.serviceaccount.RoleIAMPolicyAttachment;
-    public readonly nodesInstanceProfile: gcp.compute.InstanceIAMProfile;
+    public readonly gkeServiceAccount: gcp.serviceaccount.Account;
+    public readonly gkeLoggingIamMember: gcp.projects.IAMMember;
+    public readonly gkeMetricsIamMember: gcp.projects.IAMMember;
+    public readonly gkeMonitoringIamMember: gcp.projects.IAMMember;
+    public readonly k8sDebuggerId: pulumi.Output<string>;
+    public readonly k8sDebuggerCustomRole: gcp.projects.IAMCustomRole;
 
     constructor(name: string, config: AuthConfig, opts?: pulumi.ComponentResourceOptions) {
         super("my:auth:Auth", name, {}, opts);
 
-        // Create a new cluster role
-        this.clusterRole = new gcp.serviceaccount.(`cluster-role`, {
-            accountId: config.clusterServiceAccountName,
-            roleId: config.clusterRoleName,
+        // Create a new GKE service account
+        this.gkeServiceAccount = new gcp.serviceaccount.Account(`gke`, {
+            accountId: "gke",
+            project: config.projectId,
         }, { parent: this });
 
-        // Attach the cluster role policy
-        this.clusterRolePolicyAttachment = new gcp.serviceaccount.RoleIAMPolicyAttachment(`cluster-role-policy-attachment`, {
-            policyData: config.clusterRolePolicy,
-            role: this.clusterRole.name,
+        // Create new IAM members for GKE logging, metrics, and monitoring
+        this.gkeLoggingIamMember = new gcp.projects.IAMMember(`gke-logging`, {
+            project: config.projectId,
+            role: "roles/logging.logWriter",
+            member: `serviceAccount:${this.gkeServiceAccount.email}`,
         }, { parent: this });
 
-        // Create a new cluster service account
-        this.clusterServiceAccount = new gcp.serviceaccount.Account(`gke`, {
-            accountId: config.clusterServiceAccountName,
+        this.gkeMetricsIamMember = new gcp.projects.IAMMember(`gke-metrics`, {
+            project: config.projectId,
+            role: "roles/monitoring.metricWriter",
+            member: `serviceAccount:${this.gkeServiceAccount.email}`,
         }, { parent: this });
 
-        // Create a new nodes role
-        this.nodesRole = new gcp.serviceaccount.Role(`nodes-role`, {
-            accountId: config.nodesInstanceProfileName,
-            roleId: config.nodesRoleName,
+        this.gkeMonitoringIamMember = new gcp.projects.IAMMember(`gke-monitoring`, {
+            project: config.projectId,
+            role: "roles/monitoring.viewer",
+            member: `serviceAccount:${this.gkeServiceAccount.email}`,
         }, { parent: this });
 
-        // Attach the nodes role policy
-        this.nodesRolePolicyAttachment = new gcp.serviceaccount.RoleIAMPolicyAttachment(`nodes-role-policy-attachment`, {
-            policyData: config.nodesRolePolicy,
-            role: this.nodesRole.name,
+        // Create a new random ID for the K8s debugger custom role
+        const k8sDebuggerId = new random.RandomId(`k8s-debugger-id`, {
+            byteLength: 8,
         }, { parent: this });
 
-        // Create a new nodes instance profile
-        this.nodesInstanceProfile = new gcp.compute.InstanceIAMProfile(`nodes-instance-profile`, {
-            instanceName: config.nodesInstanceProfileName,
-            roles: [{
-                role: this.nodesRole.name,
-                members: [`serviceAccount:${this.clusterServiceAccount.email}`],
-            }],
+        // Create a new custom role for the K8s debugger
+        this.k8sDebuggerCustomRole = new gcp.projects.IAMCustomRole(`k8s-debugger`, {
+            roleId: `k8s-debugger-${k8sDebuggerId.hex}`,
+            title: "K8s Debugger",
+            description: "Custom role for K8s debugger",
+            permissions: [
+                "logging.logEntries.list",
+                "logging.logEntries.create",
+                "logging.logEntries.delete",
+                "logging.logEntries.list",
+                "logging.logEntries.update",
+                "logging.logEntries.write",
+                "logging.logs.list",
+                "logging.sinks.create",
+                "logging.sinks.delete",
+                "logging.sinks.get",
+                "logging.sinks.list",
+                "logging.sinks.update",
+                "monitoring.alertPolicies.create",
+                "monitoring.alertPolicies.delete",
+                "monitoring.alertPolicies.get",
+                "monitoring.alertPolicies.list",
+                "monitoring.alertPolicies.update",
+                "monitoring.dashboards.create",
+                "monitoring.dashboards.delete",
+                "monitoring.dashboards.get",
+                "monitoring.dashboards.list",
+                "monitoring.dashboards.update",
+                "monitoring.groups.create",
+                "monitoring.groups.delete",
+                "monitoring.groups.get",
+                "monitoring.groups.list",
+                "monitoring.groups.update",
+                "monitoring.metricDescriptors.create",
+                "monitoring.metricDescriptors.delete",
+                "monitoring.metricDescriptors.get",
+                "monitoring.metricDescriptors.list",
+                "monitoring.metricDescriptors.update",
+                "monitoring.metricDescriptors.update",
+                "monitoring.monitoredResourceDescriptors.get",
+                "monitoring.monitoredResourceDescriptors.list",
+                "monitoring.notificationChannelDescriptors.get",
+                "monitoring.notificationChannelDescriptors.list",
+                "monitoring.notificationChannels.create",
+                "monitoring.notificationChannels.delete",
+                "monitoring.notificationChannels.get",
+                "monitoring.notificationChannels.list",
+                "monitoring.notificationChannels.update",
+                "monitoring.notificationChannels.update",
+                "monitoring.publicWidgets.create",
+                "monitoring.publicWidgets.delete",
+                "monitoring.publicWidgets.get",
+                "monitoring.publicWidgets.list",
+                "monitoring.publicWidgets.update",
+                "monitoring.publicWidgets.update",
+                "monitoring.timeSeries.create",
+                "monitoring.timeSeries.list",
+                "monitoring.timeSeries.update",
+                "monitoring.timeSeries.update",
+                "monitoring.uptimeCheckConfigs.create",
+                "monitoring.uptimeCheckConfigs.delete",
+                "monitoring.uptimeCheckConfigs.get",
+                "monitoring.uptimeCheckConfigs.list",
+                "monitoring.uptimeCheckConfigs.update",
+                "monitoring.uptimeCheckIps.list",
+            ],
         }, { parent: this });
 
         // Export the auth information
+        this.k8sDebuggerId = k8sDebuggerId.id;
         this.registerOutputs({
-            clusterRoleName: this.clusterRole.name,
-            clusterRolePolicyAttachmentName: this.clusterRolePolicyAttachment.name,
-            clusterServiceAccountName: this.clusterServiceAccount.name,
-            nodesRoleName: this.nodesRole.name,
-            nodesRolePolicyAttachmentName: this.nodesRolePolicyAttachment.name,
-            nodesInstanceProfileName: this.nodesInstanceProfile.instanceName,
+            gkeServiceAccountEmail: this.gkeServiceAccount.email,
+            gkeLoggingIamMemberName: this.gkeLoggingIamMember.member,
+            gkeMetricsIamMemberName: this.gkeMetricsIamMember.member,
+            gkeMonitoringIamMemberName: this.gkeMonitoringIamMember.member,
+            k8sDebuggerCustomRoleId: this.k8sDebuggerCustomRole.roleId,
         });
     }
 }

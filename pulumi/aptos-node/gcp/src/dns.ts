@@ -20,13 +20,13 @@ export class Dns extends pulumi.ComponentResource {
         }, { parent: this });
 
         // Create a new random string for the validator DNS name
-        const validatorDnsName = new aws.random.RandomString(`validator-dns-name`, {
+        const validatorDnsName = new aws.random.RandomString(`validator`, {
             length: 10,
             special: false,
         }, { parent: this });
 
         // Create a new Route53 record for the validator
-        this.validatorRecord = new aws.route53.Record(`validator-record`, {
+        this.validatorRecord = new aws.route53.Record(`validator`, {
             name: validatorDnsName.result.apply(result => `${result}.${config.domainName}`),
             type: "CNAME",
             ttl: 300,
@@ -34,7 +34,7 @@ export class Dns extends pulumi.ComponentResource {
         }, { parent: this });
 
         // Create a new Route53 record for the full node
-        this.fullNodeRecord = new aws.route53.Record(`fullnode-record`, {
+        this.fullNodeRecord = new aws.route53.Record(`fullnode`, {
             name: config.fullNodeDnsName,
             type: "CNAME",
             ttl: 300,

@@ -14,7 +14,7 @@ export class Security extends pulumi.ComponentResource {
         super("my:security:Security", name, {}, opts);
 
         // Create a new role binding to disable the PodSecurityPolicy admission controller
-        this.disablePspRoleBinding = new k8s.rbac.v1.RoleBinding(`disable-psp-role-binding`, {
+        this.disablePspRoleBinding = new k8s.rbac.v1.RoleBinding(`disable-psp`, {
             metadata: {
                 namespace: config.namespace,
             },
@@ -36,7 +36,7 @@ export class Security extends pulumi.ComponentResource {
         }, { parent: this });
 
         // Create a new namespace with PSS default labels
-        this.pssDefaultLabels = new k8s.core.v1.Namespace(`pss-default-labels`, {
+        this.pssDefaultLabels = new k8s.core.v1.Namespace(`pss`, {
             metadata: {
                 name: config.namespace,
                 labels: {
