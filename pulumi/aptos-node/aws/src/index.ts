@@ -2,7 +2,7 @@ import { AptosNodeAWS } from "./aptosNodeAWS";
 
 const aptosNodeAWS = new AptosNodeAWS("aptos-node-aws");
 
-export const oidcProvider = aptosNodeAWS.oidcProvider;
+// export const oidcProvider = aptosNodeAWS.oidcProvider;
 
 // Network
 export const awsEipNatPublicIp = aptosNodeAWS.awsEipNatPublicIp;

@@ -10,7 +10,7 @@ export const region = config.require("region");
 export const awsConfig = new pulumi.Config("aws");
 export const numAzs = config.getNumber("numAzs") || 3;
 export const kubernetesVersion = config.get("kubernetesVersion") || "1.24";
-export const k8sApiSources = config.getObject("k8sApiSources") || ["0.0.0.0/0"];
+export const k8sApiSources = (config.getObject("k8sApiSources") || ["0.0.0.0/0"]) as string[];
 
 // Aptos Configurations
 export const numValidators = config.getNumber("numValidators") || 1;

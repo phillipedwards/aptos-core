@@ -2,12 +2,11 @@ import * as pulumi from "@pulumi/pulumi";
 import * as random from "@pulumi/random";
 import * as aws from "@pulumi/aws";
 import * as command from "@pulumi/command";
-import * as awsNative from "@pulumi/aws-native";
 
 export interface DNSConfig {
     domainName: string;
     hostedZoneId: string;
-    lbDnsName: string;
+    lbDnsName: pulumi.Input<string>;
 }
 
 export class DNS extends pulumi.ComponentResource {

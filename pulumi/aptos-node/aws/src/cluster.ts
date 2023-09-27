@@ -1,6 +1,5 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
-import * as awsNative from '@pulumi/aws-native';
 
 export interface NodePoolConfig {
     instance_type: string;
@@ -23,29 +22,26 @@ interface NodeGroupConfig {
 }
 
 class NodeGroup extends pulumi.ComponentResource {
-    public readonly launchTemplate: awsNative.ec2.LaunchTemplate;
+    public readonly launchTemplate: aws.ec2.LaunchTemplate;
     public readonly nodeGroup: aws.eks.NodeGroup;
 
     constructor(name: string, args: NodeGroupConfig, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:NodeGroup", name, {}, opts);
 
-        this.launchTemplate = new awsNative.ec2.LaunchTemplate(`launch-template`, {
-            launchTemplateName: `aptos-${args.workspaceName}-${args.name}`,
-            // imageId: args.amiId,
-            launchTemplateData: {
-                instanceType: args.nodePoolConfig.instance_type,
-                blockDeviceMappings: [
-                    {
-                        deviceName: "/dev/xvda",
-                        ebs: {
-                            volumeSize: 100,
-                            volumeType: "gp3",
-                            deleteOnTermination: true,
-                        },
+        this.launchTemplate = new aws.ec2.LaunchTemplate(`launch-template`, {
+            name: `aptos-${args.workspaceName}-${args.name}`,
+            instanceType: args.nodePoolConfig.instance_type,
+            blockDeviceMappings: [
+                {
+                    deviceName: "/dev/xvda",
+                    ebs: {
+                        volumeSize: 100,
+                        volumeType: "gp3",
+                        deleteOnTermination: 'true',
                     },
-                ],
-                // TODO tags for resources created by launch template
-            },
+                },
+            ],
+            // TODO tags for resources created by launch template
             // TODO tags for the launch template itself
             tagSpecifications: [
                 {
@@ -72,7 +68,7 @@ class NodeGroup extends pulumi.ComponentResource {
             instanceTypes: [args.nodePoolConfig.instance_type],
             launchTemplate: {
                 id: this.launchTemplate.id,
-                version: this.launchTemplate.latestVersionNumber,
+                version: String(this.launchTemplate.latestVersion),
             },
             taints: args.nodePoolConfig.instance_enable_taint ? [
                 {
@@ -108,59 +104,50 @@ export interface ClusterConfig {
     clusterRoleArn: pulumi.Input<string>;
     nodeRoleArn: pulumi.Input<string>;
     instanceType: pulumi.Input<string>;
-    desiredCapacity: pulumi.Input<number>;
     kubernetesVersion: pulumi.Input<string>;
-    minSize: pulumi.Input<number>;
-    maxSize: pulumi.Input<number>;
     privateSubnetIds: pulumi.Input<string>[];
     publicSubnetIds: pulumi.Input<string>[];
     securityGroupIdNodes: pulumi.Input<string>;
     securityGroupIdCluster: pulumi.Input<string>;
-    k8sApiSources: pulumi.Input<string>[];
-    utilitiesNodePool?: NodePoolConfig;
-    validatorsNodePool?: NodePoolConfig;
+    k8sApiSources: string[]
+    utilitiesNodePool: NodePoolConfig;
+    validatorsNodePool: NodePoolConfig;
     tags?: pulumi.Input<aws.ec2.Tag[]>;
 }
 
 export class Cluster extends pulumi.ComponentResource {
-    public readonly eksCluster: awsNative.eks.Cluster;
+    public readonly eksCluster: aws.eks.Cluster;
     public readonly utilitiesNodeGroup: NodeGroup;
     public readonly validatorsNodeGroup: NodeGroup;
-    public readonly eksNodeGroupRole: awsNative.iam.Role;
+    public readonly eksNodeGroupRole: aws.iam.Role;
     public readonly eksNodeGroupRolePolicyAttachment: aws.iam.RolePolicyAttachment;
-    public readonly eksAddon: awsNative.eks.Addon;
+    public readonly eksAddon: aws.eks.Addon;
     public readonly cloudwatchLogGroup: aws.cloudwatch.LogGroup;
-    public readonly launchTemplate: awsNative.ec2.LaunchTemplate;
+    public readonly launchTemplate: aws.ec2.LaunchTemplate;
     public readonly openidConnectProvider: aws.iam.OpenIdConnectProvider;
 
     constructor(name: string, args: ClusterConfig, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:Cluster", name, {}, opts);
 
-        const clusterLoggingTypeConfigArgsList: awsNative.types.input.eks.ClusterLoggingTypeConfigArgs[] = [
-            { type: "api" },
-            { type: "audit" },
-            { type: "authenticator" },
-            { type: "controllerManager" },
-            { type: "scheduler" }
-        ]
-        const clusterLoggingEnabledTypes: awsNative.types.input.eks.ClusterLoggingEnabledTypesArgs = {
-            enabledTypes: clusterLoggingTypeConfigArgsList,
-        };
-
         // Create the EKS cluster
-        this.eksCluster = new awsNative.eks.Cluster(`aptos`, {
+        this.eksCluster = new aws.eks.Cluster(`aptos`, {
             name: args.clusterName,
             roleArn: args.clusterRoleArn,
             version: args.kubernetesVersion,
-            logging: {
-                clusterLogging: clusterLoggingEnabledTypes
-            },
-            resourcesVpcConfig: {
+            enabledClusterLogTypes: [
+                "api",
+                "audit",
+                "authenticator",
+                "controllerManager",
+                "scheduler",
+            ],
+            vpcConfig: {
                 subnetIds: [...args.publicSubnetIds, ...args.privateSubnetIds],
-                publicAccessCidrs: args.k8sApiSources,
+                publicAccessCidrs: pulumi.output(args.k8sApiSources),
                 endpointPrivateAccess: true,
                 securityGroupIds: [args.securityGroupIdCluster],
             },
+            // TODO tags
         }, {
             parent: this,
             ignoreChanges: [
@@ -170,10 +157,10 @@ export class Cluster extends pulumi.ComponentResource {
         });
 
         // Create the IAM role for the EKS node group
-        this.eksNodeGroupRole = new awsNative.iam.Role(`eksNodeGroupRole`, {
-            roleName: `eksNodeGroupRole`,
+        this.eksNodeGroupRole = new aws.iam.Role(`eksNodeGroup`, {
+            name: 'eksNodeGroup',
             path: '/',
-            assumeRolePolicyDocument: JSON.stringify({
+            assumeRolePolicy: JSON.stringify({
                 Version: '2012-10-17',
                 Statement: [{
                     Effect: 'Allow',
@@ -182,7 +169,7 @@ export class Cluster extends pulumi.ComponentResource {
                     },
                     Action: 'sts:AssumeRole'
                 }]
-            })
+            }),
         }, { parent: this });
 
         // Create the EKS node group for utilities
@@ -199,22 +186,32 @@ export class Cluster extends pulumi.ComponentResource {
         }, { parent: this.eksCluster });
 
         // Create the EKS node group for validators
-
+        this.validatorsNodeGroup = new NodeGroup(`validators`, {
+            name: `validators`,
+            subnetIds: [...args.privateSubnetIds, ...args.publicSubnetIds],
+            securityGroupIds: [args.securityGroupIdNodes],
+            clusterName: args.clusterName,
+            nodeRoleArn: args.nodeRoleArn,
+            nodePoolConfig: args.validatorsNodePool,
+            kubernetesVersion: args.kubernetesVersion,
+            workspaceName: name,
+            tags: args.tags,
+        }, { parent: this.eksCluster });
 
         // Attach the Amazon EKS worker node IAM policy to the IAM role
         this.eksNodeGroupRolePolicyAttachment = new aws.iam.RolePolicyAttachment(`eksNodeGroupRolePolicyAttachment`, {
             policyArn: 'arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy',
-            role: this.eksNodeGroupRole.roleName.apply(value => value || "")
+            role: this.eksNodeGroupRole.name.apply(value => value || "")
         }, { parent: this });
 
         // Attach the Amazon EKS CNI policy to the IAM role
         new aws.iam.RolePolicyAttachment(`eksNodeGroupRolePolicyAttachmentCNI`, {
             policyArn: 'arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy',
-            role: this.eksNodeGroupRole.roleName.apply(value => value || "")
+            role: this.eksNodeGroupRole.name.apply(value => value || "")
         }, { parent: this });
 
         // Create the Amazon EKS add-on for the EBS CSI driver
-        this.eksAddon = new awsNative.eks.Addon(`eksAddon`, {
+        this.eksAddon = new aws.eks.Addon(`eksAddon`, {
             addonName: 'ebs-csi',
             clusterName: args.clusterName,
             serviceAccountRoleArn: this.eksNodeGroupRole.arn
@@ -227,37 +224,35 @@ export class Cluster extends pulumi.ComponentResource {
         }, { parent: this });
 
         // Create the launch template for the EKS node group
-        this.launchTemplate = new awsNative.ec2.LaunchTemplate(`nodes`, {
-            launchTemplateName: `aptos-${name}/nodes`,
-            launchTemplateData: {
-                blockDeviceMappings: [{
-                    deviceName: "/dev/xvda",
-                    ebs: {
-                        deleteOnTermination: true,
-                        volumeSize: 100,
-                        volumeType: "gp3"
-                    }
-                }],
-                instanceType: args.instanceType,
-                iamInstanceProfile: {
-                    arn: this.eksNodeGroupRole.arn
-                },
-                tagSpecifications: [{
-                    resourceType: "instance",
-                    // TODO tagging
-                    // tags: pulumi.all([args.tags, name]).apply(([tags, name]) => ({
-                    //     ...tags,
-                    //     Name: `aptos-${name}/nodes`
-                    // }))
-                }],
+        this.launchTemplate = new aws.ec2.LaunchTemplate(`nodes`, {
+            name: `aptos-${name}/nodes`,
+            blockDeviceMappings: [{
+                deviceName: "/dev/xvda",
+                ebs: {
+                    deleteOnTermination: 'true',
+                    volumeSize: 100,
+                    volumeType: "gp3"
+                }
+            }],
+            instanceType: args.instanceType,
+            iamInstanceProfile: {
+                arn: this.eksNodeGroupRole.arn
             },
+            tagSpecifications: [{
+                resourceType: "instance",
+                // TODO tagging
+                // tags: pulumi.all([args.tags, name]).apply(([tags, name]) => ({
+                //     ...tags,
+                //     Name: `aptos-${name}/nodes`
+                // }))
+            }],
         }, { parent: this });
 
         // Create the OpenID Connect provider for the EKS cluster
         this.openidConnectProvider = new aws.iam.OpenIdConnectProvider(`openidConnectProvider`, {
             clientIdLists: ["sts.amazonaws.com"],
             thumbprintLists: ["9e99a48a9960b14926bb7f3b02e22da2b0ab7280"],
-            url: this.eksCluster.openIdConnectIssuerUrl,
+            url: this.eksCluster.identities[0].oidcs[0].issuer,
         }, { parent: this });
     }
 }

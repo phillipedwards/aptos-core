@@ -3,10 +3,11 @@ import * as k8s from "@pulumi/kubernetes";
 import * as aws from "@pulumi/aws";
 
 interface KubernetesConfig {
-    clusterName: string;
+    eksCluster: aws.eks.Cluster;
     vpcId: pulumi.Input<string>;
     subnetIds: pulumi.Input<string>[];
     tags?: pulumi.Input<aws.Tags>;
+
 }
 
 export class Kubernetes extends pulumi.ComponentResource {
@@ -26,8 +27,9 @@ export class Kubernetes extends pulumi.ComponentResource {
     constructor(name: string, args: KubernetesConfig, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:Kubernetes", name, {}, opts);
 
-        const provider = new k8s.Provider(`${name}-provider`, {
-            kubeconfig: aws.eks.getCluster(name, {}).kubeconfig,
+        const provider = new k8s.Provider(`k8s`, {
+            kubeconfig: args.eksCluster.kubeconfig,
+            // kubeconfig: aws.eks.getCluster({ name: name }).then(cluster => cluster.certificateAuthorities?.),
         }, { parent: this });
 
         const gp3StorageClass = new k8s.storage.v1.StorageClass(`${name}-gp3-storage-class`, {
@@ -183,7 +185,7 @@ export class Kubernetes extends pulumi.ComponentResource {
             data: {
                 "mapRoles": JSON.stringify([
                     {
-                        "rolearn": pulumi.interpolate`arn:aws:iam::${aws.getCallerIdentity().accountId}:role/eks-node-group-role`,
+                        "rolearn": pulumi.interpolate`arn:aws:iam::${aws.getCallerIdentity().then(current => current.accountId)}:role/eks-node-group-role`,
                         "username": "system:node:{{EC2PrivateDNSName}}",
                         "groups": [
                             "system:bootstrappers",

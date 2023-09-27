@@ -1,5 +1,4 @@
 import * as pulumi from "@pulumi/pulumi";
-import * as awsNative from "@pulumi/aws-native";
 import * as aws from "@pulumi/aws";
 import { SubnetInfo, ip4, ip6, toLongForm, toShortForm, toByteArray, fromByteArray } from 'ip6';
 
@@ -50,20 +49,20 @@ export function getSubnets(cidr: string, numSubnets: number, subnetSizes: number
 
 export interface NetworkConfig {
     vpcCidrBlock: string;
-    awsAvailabilityZones: string[];
+    awsAvailabilityZones: Promise<aws.GetAvailabilityZonesResult>
     maximizeSingleAzCapacity: boolean;
     workspaceName: string;
 }
 
 export class Network extends pulumi.ComponentResource {
-    public readonly vpc: awsNative.ec2.Vpc;
-    public readonly publicSubnets: awsNative.ec2.Subnet[];
-    public readonly privateSubnets: awsNative.ec2.Subnet[];
-    public readonly internetGateway: awsNative.ec2.InternetGateway;
-    public readonly publicRouteTable: awsNative.ec2.RouteTable;
-    public readonly privateRouteTable: awsNative.ec2.RouteTable;
-    public readonly natEip: awsNative.ec2.Eip;
-    public readonly natGateway: awsNative.ec2.NatGateway;
+    public readonly vpc: aws.ec2.Vpc;
+    public readonly publicSubnets: aws.ec2.Subnet[];
+    public readonly privateSubnets: aws.ec2.Subnet[];
+    public readonly internetGateway: aws.ec2.InternetGateway;
+    public readonly publicRouteTable: aws.ec2.RouteTable;
+    public readonly privateRouteTable: aws.ec2.RouteTable;
+    public readonly natEip: aws.ec2.Eip;
+    public readonly natGateway: aws.ec2.NatGateway;
     public readonly clusterSecurityGroup: aws.ec2.SecurityGroup;
     public readonly nodesSecurityGroup: aws.ec2.SecurityGroup;
     public readonly nodesEgressSecurityGroupRule: aws.ec2.SecurityGroupRule;
@@ -71,7 +70,7 @@ export class Network extends pulumi.ComponentResource {
     constructor(name: string, config: NetworkConfig, opts?: pulumi.ComponentResourceOptions) {
         super("my:module:Network", name, {}, opts);
 
-        const numAzs = config.awsAvailabilityZones.length;
+        const numAzs = Number(config.awsAvailabilityZones.then(azs => azs.names.length));
         const numOtherSubnets = numAzs * 2 - 1;
         const maxSubnetCidrRanges = getSubnets(config.vpcCidrBlock, 1, [
             ...Array.from({ length: numOtherSubnets }, (_, i) => 1 + Math.ceil(Math.pow(numOtherSubnets, 0.5))),
@@ -94,125 +93,95 @@ export class Network extends pulumi.ComponentResource {
             ? maxPrivateSubnetCidrRanges
             : defaultPrivateSubnetCidrRanges;
 
-        this.vpc = new awsNative.ec2.Vpc(`vpc`, {
+        const aptosK8sTagKey = `kubernetes.io/cluster/aptos-${config.workspaceName}`
+
+        this.vpc = new aws.ec2.Vpc(`vpc`, {
             cidrBlock: config.vpcCidrBlock,
             enableDnsHostnames: true,
-            tags: [
-                {
-                    key: "Name",
-                    value: `aptos-${config.workspaceName}`,
-                },
-                {
-                    key: `kubernetes.io/cluster/aptos-${config.workspaceName}`,
-                    value: "shared",
-                }
-            ],
+            tags: {
+                "name": `aptos-${config.workspaceName}`,
+                aptosK8sTagKey: "shared",
+            },
         }, { parent: this });
 
         this.publicSubnets = [];
         this.privateSubnets = [];
 
         for (let i = 0; i < numAzs; i++) {
-            const publicSubnet = new awsNative.ec2.Subnet(`public-${i}`, {
+            const thisAZ = config.awsAvailabilityZones.then(azs => azs.names[i])
+            const publicSubnet = new aws.ec2.Subnet(`public-${i}`, {
                 vpcId: this.vpc.id,
                 cidrBlock: publicSubnetCidrRanges[i],
-                availabilityZone: config.awsAvailabilityZones[i],
-                tags: [
-                    {
-                        key: "Name",
-                        value: `aptos-${config.workspaceName}/public-${config.awsAvailabilityZones[i]}`,
-                    },
-                    {
-                        key: `kubernetes.io/cluster/aptos-${config.workspaceName}`,
-                        value: `shared`,
-                    },
-                    {
-                        key: "kubernetes.io/role/internal-elb",
-                        value: `1`,
-                    },
-                ]
+                availabilityZone: thisAZ,
+                tags: {
+                    "Name": `aptos-${config.workspaceName}/public-${thisAZ}`,
+                    aptosK8sTagKey: "shared",
+                    aptosK8sTagKeyPublicAzs: "1",
+                },
             }, { parent: this.vpc });
 
-            const privateSubnet = new awsNative.ec2.Subnet(`private-${i}`, {
+            const privateSubnet = new aws.ec2.Subnet(`private-${i}`, {
                 vpcId: this.vpc.id,
                 cidrBlock: privateSubnetCidrRanges[i],
-                availabilityZone: config.awsAvailabilityZones[i],
-                tags: [
-                    {
-                        key: "Name",
-                        value: `aptos-${config.workspaceName}/public-${config.awsAvailabilityZones[i]}`,
-                    },
-                    {
-                        key: `kubernetes.io/cluster/aptos-${config.workspaceName}`,
-                        value: `shared`,
-                    },
-                    {
-                        key: "kubernetes.io/role/internal-elb",
-                        value: `1`,
-                    },
-                ]
+                availabilityZone: thisAZ,
+                tags: {
+                    'Name': `aptos-${config.workspaceName}/private-${thisAZ}`,
+                    aptosK8sTagKey: "shared",
+                    "kubernetes.io/role/internal-elb": '1',
+                },
             }, { parent: this.vpc });
 
             this.publicSubnets.push(publicSubnet);
             this.privateSubnets.push(privateSubnet);
         }
 
-        this.internetGateway = new awsNative.ec2.InternetGateway(`public`, {
-            tags: [
-                {
-                    key: "Name",
-                    value: `aptos-${config.workspaceName}`,
-                },
-            ]
+        this.internetGateway = new aws.ec2.InternetGateway(`public`, {
+            tags: {
+                "Name": `aptos-${config.workspaceName}`,
+            }
         }, { parent: this.vpc });
 
-        this.publicRouteTable = new awsNative.ec2.RouteTable(`public`, {
+        this.publicRouteTable = new aws.ec2.RouteTable(`public`, {
             vpcId: this.vpc.id,
-            tags: [
-                {
-                    key: "Name",
-                    value: `aptos-${config.workspaceName}/public`,
-                },
-            ]
+            tags: {
+                "Name": `aptos-${config.workspaceName}/public`,
+            },
         }, { parent: this.vpc });
 
-        new awsNative.ec2.Route(`public`, {
+        new aws.ec2.Route(`public`, {
             routeTableId: this.publicRouteTable.id,
             destinationCidrBlock: "0.0.0.0/0",
             gatewayId: this.internetGateway.id,
         }, { parent: this.publicRouteTable });
 
-        this.privateRouteTable = new awsNative.ec2.RouteTable(`private`, {
+        this.privateRouteTable = new aws.ec2.RouteTable(`private`, {
             vpcId: this.vpc.id,
-            tags: [
-                {
-                    key: "Name",
-                    value: `aptos-${config.workspaceName}/private`,
-                },
-            ]
+            tags: {
+                "Name": `aptos-${config.workspaceName}/private`,
+            },
         }, { parent: this.vpc });
 
         for (let i = 0; i < numAzs; i++) {
-            new awsNative.ec2.SubnetRouteTableAssociation(`public-${i}`, {
+            new aws.ec2.RouteTableAssociation(`public-${i}`, {
                 subnetId: this.publicSubnets[i].id,
                 routeTableId: this.publicRouteTable.id,
             }, { parent: this.publicSubnets[i] });
 
-            new awsNative.ec2.SubnetRouteTableAssociation(`private-${i}`, {
+            new aws.ec2.RouteTableAssociation(`private-${i}`, {
                 subnetId: this.privateSubnets[i].id,
                 routeTableId: this.privateRouteTable.id,
             }, { parent: this.privateSubnets[i] });
         }
 
-        this.natEip = new awsNative.ec2.Eip(`nat`, {
+        this.natEip = new aws.ec2.Eip(`nat`, {
         }, { parent: this });
 
-        this.natGateway = new awsNative.ec2.NatGateway(`private`, {
+        this.natGateway = new aws.ec2.NatGateway(`private`, {
             allocationId: this.natEip.id,
             subnetId: this.publicSubnets[0].id,
         }, { parent: this.publicSubnets[0] });
 
-        new awsNative.ec2.Route(`private`, {
+        new aws.ec2.Route(`private`, {
             routeTableId: this.privateRouteTable.id,
             destinationCidrBlock: "0.0.0.0/0",
             natGatewayId: this.natGateway.id,

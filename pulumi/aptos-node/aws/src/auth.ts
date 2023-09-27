@@ -1,6 +1,5 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
-import * as awsNative from "@pulumi/aws-native";
 
 export interface AuthConfig {
     workspaceName: string;
