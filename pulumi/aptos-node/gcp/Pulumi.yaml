@@ -1,0 +1,7 @@
+name: aptos-node
+description: TODO
+runtime: 
+  name: nodejs
+main: ./src/
+config:
+  
