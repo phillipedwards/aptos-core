@@ -39,7 +39,7 @@ export class Auth extends pulumi.ComponentResource {
         this.gkeMonitoringIamMember = new gcp.projects.IAMMember(`gke-monitoring`, {
             project: config.projectId,
             role: "roles/monitoring.viewer",
-            member: `serviceAccount:${this.gkeServiceAccount.email}`,
+            member: pulumi.interpolate `serviceAccount:${this.gkeServiceAccount.email}`, // string interpolation for outputs requires pulumi.interpolate
         }, { parent: this });
 
         // Create a new random ID for the K8s debugger custom role
