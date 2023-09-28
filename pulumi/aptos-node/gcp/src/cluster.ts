@@ -2,18 +2,27 @@ import * as pulumi from "@pulumi/pulumi";
 import * as gcp from "@pulumi/gcp";
 
 export interface ClusterConfig {
-    name: pulumi.Input<string>;
+    clusterIpv4CidrBlock: pulumi.Input<string>;
+    gkeEnableAutoscaling: any;
+    gkeEnableNodeAutoprovisioning: pulumi.Input<boolean>;
+    gkeMaintenancePolicy: any;
+    googleServiceAccountEmail: pulumi.Input<string>;
+    k8sApiSources: pulumi.Input<string>[];
     location: pulumi.Input<string>;
-    nodePoolConfigs: NodePoolConfig[];
+    name: pulumi.Input<string>;
+    nodePoolConfigsForUtilities: NodePoolConfig;
+    nodePoolConfigsForValidators: NodePoolConfig;
+    projectId: string;
 }
 
 export interface NodePoolConfig {
-    name: pulumi.Input<string>;
-    machineType: pulumi.Input<string>;
     diskSizeGb: pulumi.Input<number>;
     diskType: pulumi.Input<string>;
-    minNodeCount: pulumi.Input<number>;
+    enableTaints: pulumi.Input<boolean>;
+    machineType: pulumi.Input<string>;
     maxNodeCount: pulumi.Input<number>;
+    minNodeCount: pulumi.Input<number>;
+    name: pulumi.Input<string>;
 }
 
 export class Cluster extends pulumi.ComponentResource {
@@ -41,46 +50,135 @@ export class Cluster extends pulumi.ComponentResource {
                     "https://www.googleapis.com/auth/monitoring",
                 ],
             },
+            loggingService: "logging.googleapis.com/kubernetes",
+            monitoringService: "monitoring.googleapis.com/kubernetes",
+
+            releaseChannel: {
+                channel: "REGULAR",
+            },
+
+            podSecurityPolicyConfig: {
+                enabled: true,
+            },
+
+            masterAuth: {
+                clientCertificateConfig: {
+                    issueClientCertificate: false,
+                },
+            },
+
+            masterAuthorizedNetworksConfig: {
+                cidrBlocks: config.k8sApiSources.map(eachCidrBlock => ({
+                    cidrBlock: eachCidrBlock,
+                })),
+            },
+
+            privateClusterConfig: {
+                enablePrivateEndpoint: false,
+                enablePrivateNodes: true,
+                masterIpv4CidrBlock: "172.16.0.0/28"
+            },
+
+            ipAllocationPolicy: {
+                clusterIpv4CidrBlock: config.clusterIpv4CidrBlock,
+            },
+
+            workloadIdentityConfig: {
+                workloadPool: `${config.projectId}.svc.id.goog`,
+            },
+
+            addonsConfig: {
+                networkPolicyConfig: {
+                    disabled: false,
+                },
+            },
+
+            networkPolicy: {
+                enabled: false,
+            },
+
+            clusterAutoscaling: {
+                enabled: config.gkeEnableNodeAutoprovisioning,
+            },
+
+            maintenancePolicy: {
+                recurringWindow: config.gkeMaintenancePolicy.recurringWindow.map(eachRecurringWindow => ({
+                    startTime: eachRecurringWindow.startTime,
+                    endTime: eachRecurringWindow.endTime,
+                    recurrence: eachRecurringWindow.recurrence,
+                })),
+            },
         }, { parent: this });
 
         // Create new node pools for utilities and validators
         this.utilitiesNodePool = new gcp.container.NodePool(`utilities`, {
-            name: config.nodePoolConfigs[0].name,
+            name: config.nodePoolConfigsForUtilities.name,
             location: config.location,
             cluster: this.cluster.name,
-            nodeCount: config.nodePoolConfigs[0].minNodeCount,
-            autoscaling: {
-                minNodeCount: config.nodePoolConfigs[0].minNodeCount,
-                maxNodeCount: config.nodePoolConfigs[0].maxNodeCount,
-            },
+            nodeCount: config.nodePoolConfigsForUtilities.minNodeCount,
             nodeConfig: {
-                machineType: config.nodePoolConfigs[0].machineType,
-                diskSizeGb: config.nodePoolConfigs[0].diskSizeGb,
-                diskType: config.nodePoolConfigs[0].diskType,
+                machineType: config.nodePoolConfigsForUtilities.machineType,
+                imageType: "COS_CONTAINERD",
+                diskSizeGb: config.nodePoolConfigsForUtilities.diskSizeGb,
+                serviceAccount: config.googleServiceAccountEmail,
+                tags: ["utilities"],
+                oauthScopes: [
+                    "https://www.googleapis.com/auth/cloud-platform",
+                ],
+
+                shieldedInstanceConfig: {
+                    enableSecureBoot: true,
+                },
+
+                workloadMetadataConfig: {
+                    mode: "GKE_METADATA",
+                },
+
+                taints: config.nodePoolConfigsForUtilities.enableTaints ? [{
+                    key: "aptos-node/utility",
+                    value: "true",
+                    effect: "NoExecute",
+                }] : [],
             },
+            autoscaling: config.gkeEnableAutoscaling ? {
+                minNodeCount: config.nodePoolConfigsForUtilities.minNodeCount,
+                maxNodeCount: config.nodePoolConfigsForUtilities.maxNodeCount,
+            } : {},
         }, { parent: this });
 
         this.validatorsNodePool = new gcp.container.NodePool(`validators`, {
-            name: config.nodePoolConfigs[1].name,
+            name: config.nodePoolConfigsForValidators.name,
             location: config.location,
             cluster: this.cluster.name,
-            nodeCount: config.nodePoolConfigs[1].minNodeCount,
-            autoscaling: {
-                minNodeCount: config.nodePoolConfigs[1].minNodeCount,
-                maxNodeCount: config.nodePoolConfigs[1].maxNodeCount,
-            },
+            nodeCount: config.nodePoolConfigsForValidators.minNodeCount,
             nodeConfig: {
-                machineType: config.nodePoolConfigs[1].machineType,
-                diskSizeGb: config.nodePoolConfigs[1].diskSizeGb,
-                diskType: config.nodePoolConfigs[1].diskType,
-            },
-        }, { parent: this });
+                machineType: config.nodePoolConfigsForValidators.machineType,
+                imageType: "COS_CONTAINERD",
+                diskSizeGb: config.nodePoolConfigsForValidators.diskSizeGb,
+                serviceAccount: config.googleServiceAccountEmail,
+                tags: ["validators"],
+                oauthScopes: [
+                    "https://www.googleapis.com/auth/cloud-platform",
+                ],
 
-        // Export the cluster and node pool information
-        this.registerOutputs({
-            clusterName: this.cluster.name,
-            utilitiesNodePoolName: this.utilitiesNodePool.name,
-            validatorsNodePoolName: this.validatorsNodePool.name,
-        });
+                shieldedInstanceConfig: {
+                    enableSecureBoot: true,
+                },
+
+                workloadMetadataConfig: {
+                    mode: "GKE_METADATA",
+                },
+
+                taints: config.nodePoolConfigsForValidators.enableTaints ? [{
+                    key: "aptos.org/nodepool",
+                    value: "true",
+                    effect: "NoExecute",
+                }] : [],
+            },
+            autoscaling: config.gkeEnableAutoscaling ? {
+                minNodeCount: config.nodePoolConfigsForValidators.minNodeCount,
+                maxNodeCount: config.nodePoolConfigsForValidators.maxNodeCount,
+            } : {},
+        }, { parent: this });
     }
 }

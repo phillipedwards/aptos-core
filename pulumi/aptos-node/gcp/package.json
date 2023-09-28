@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@pulumi/eks": "^1.0.3"
+  }
+}

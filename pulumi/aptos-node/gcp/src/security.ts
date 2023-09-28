@@ -44,12 +44,5 @@ export class Security extends pulumi.ComponentResource {
                 },
             },
         }, { parent: this });
-
-        // Export the security information
-        this.registerOutputs({
-            disablePspRoleBindingName: this.disablePspRoleBinding.metadata.name,
-            deletePspAuthenticatedId: this.deletePspAuthenticated.id,
-            pssDefaultLabelsName: this.pssDefaultLabels.metadata.name,
-        });
     }
 }
