@@ -16,6 +16,7 @@ export class Auth extends pulumi.ComponentResource {
     public readonly k8sDebuggerCustomRole: gcp.projects.IAMCustomRole;
 
     constructor(name: string, config: AuthConfig, opts?: pulumi.ComponentResourceOptions) {
+        // TODO:  super("aptos-node:azure:Auth", name, {}, opts); or type token similar describing what this is doing.
         super("my:auth:Auth", name, {}, opts);
 
         // Create a new GKE service account
