@@ -48,32 +48,63 @@ export class Kubernetes extends pulumi.ComponentResource {
     constructor(name: string, config: KubernetesConfig, opts?: pulumi.ComponentResourceOptions) {
         super("my:kubernetes:Kubernetes", name, {}, opts);
 
-        const kubeconfig = new k8sClientLib.KubeConfig();
-        kubeconfig.loadFromOptions({
-            clusters: [
-                {
-                    name: String(config.cluster.name),
-                    server: String(config.cluster.endpoint),
-                    caData: config.cluster.masterAuth[0].clusterCaCertificate,
-                },
-            ],
-            contexts: [
-                {
-                    name: String(config.cluster.name),
-                    cluster: String(config.cluster.name),
-                    user: String(config.cluster.name),
-                },
-            ],
-            currentContext: String(config.cluster.name),
-            users: [
-                {
-                    name: String(config.cluster.name),
-                    // token: String(config.cluster.identities.apply(identities => identities[0].oidcs?.[0]?.issuer)).split("id/")[1],
-                    authProvider: undefined,
-                    exec: undefined,
-                },
-            ],
-        })
+        // pulumi example for creating a k8s kubeconfig:: https://github.com/pulumi/pulumi-self-hosted-installers/blob/master/gke-hosted/02-kubernetes/cluster.ts
+        // TODO: move kubeconfig generation to cluster component and output a Output<string> on the cluster as a property
+        const kubeconfig = pulumi.all([config.cluster.name, config.cluster.endpoint, config.cluster.masterAuth[0].clusterCaCertificate]).apply(([name, endpoint, clusterCert]) => {
+            const kubeconfigBuilder = new k8sClientLib.KubeConfig();
+            kubeconfigBuilder.loadFromOptions({
+                clusters: [
+                    {
+                        name: name,
+                        server: endpoint,
+                        caData: clusterCert,
+                    },
+                ],
+                contexts: [
+                    {
+                        name: name,
+                        cluster: name,
+                        user: name,
+                    },
+                ],
+                currentContext: name,
+                users: [
+                    {
+                        name: name,
+                        // token: String(config.cluster.identities.apply(identities => identities[0].oidcs?.[0]?.issuer)).split("id/")[1],
+                        authProvider: undefined,
+                        exec: undefined,
+                    },
+                ],
+            })
+        });
+
+        // const kubeconfig = new k8sClientLib.KubeConfig();
+        // kubeconfig.loadFromOptions({
+        //     clusters: [
+        //         {
+        //             name: String(config.cluster.name),
+        //             server: String(config.cluster.endpoint),
+        //             caData: config.cluster.masterAuth[0].clusterCaCertificate,
+        //         },
+        //     ],
+        //     contexts: [
+        //         {
+        //             name: String(config.cluster.name),
+        //             cluster: String(config.cluster.name),
+        //             user: String(config.cluster.name),
+        //         },
+        //     ],
+        //     currentContext: String(config.cluster.name),
+        //     users: [
+        //         {
+        //             name: String(config.cluster.name),
+        //             // token: String(config.cluster.identities.apply(identities => identities[0].oidcs?.[0]?.issuer)).split("id/")[1],
+        //             authProvider: undefined,
+        //             exec: undefined,
+        //         },
+        //     ],
+        // })
 
         const provider = new k8s.Provider(`k8s`, {
             kubeconfig: kubeconfig.exportConfig(),
