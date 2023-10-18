@@ -25,6 +25,13 @@ export const getNextSubnet = (cidr: string, newBits: number, nth: number): strin
 };
 
 // Function to calculate multiple subnets
+/**
+ * Returns an array of subnet information objects based on the provided CIDR block, number of subnets, and subnet sizes.
+ * @param cidr - The CIDR block to use for subnetting.
+ * @param numSubnets - The number of subnets to create.
+ * @param subnetSizes - An array of subnet sizes to use for each subnet. If not provided, the last subnet size will be used for all subnets.
+ * @returns An array of subnet information objects.
+ */
 export function getSubnets(cidr: string, numSubnets: number, subnetSizes: number[]): SubnetInfo[] {
     const isIPv6 = cidr.includes(':');
     const ip = isIPv6 ? ip6 : ip4;
@@ -68,7 +75,7 @@ export class Network extends pulumi.ComponentResource {
     public readonly nodesEgressSecurityGroupRule: aws.ec2.SecurityGroupRule;
 
     constructor(name: string, config: NetworkConfig, opts?: pulumi.ComponentResourceOptions) {
-        super("my:module:Network", name, {}, opts);
+        super("aptos-node:aws:Network", name, {}, opts);
 
         const numAzs = Number(config.awsAvailabilityZones.then(azs => azs.names.length));
         const numOtherSubnets = numAzs * 2 - 1;

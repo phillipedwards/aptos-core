@@ -1,8 +1,6 @@
 import * as k8sClientLib from '@kubernetes/client-node';
 import * as gcp from "@pulumi/gcp";
 import * as pulumi from "@pulumi/pulumi";
-import { base64encode } from '@pulumi/std/base64encode';
-import { validatorNodeConfig } from './config';
 
 export interface ClusterConfig {
     clusterIpv4CidrBlock: pulumi.Input<string>;
@@ -189,7 +187,6 @@ export class Cluster extends pulumi.ComponentResource {
                 users: [
                     {
                         name: name,
-                        // token: String(config.cluster.identities.apply(identities => identities[0].oidcs?.[0]?.issuer)).split("id/")[1],
                         authProvider: undefined,
                         exec: undefined,
                     },

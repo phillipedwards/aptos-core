@@ -1,8 +1,8 @@
-import * as pulumi from "@pulumi/pulumi";
-import * as gcp from "@pulumi/gcp";
-import * as random from "@pulumi/random";
 import * as command from "@pulumi/command";
+import * as gcp from "@pulumi/gcp";
 import * as k8s from "@pulumi/kubernetes";
+import * as pulumi from "@pulumi/pulumi";
+import * as random from "@pulumi/random";
 
 export interface DnsConfig {
     dnsTtl: pulumi.Input<number>;

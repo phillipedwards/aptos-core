@@ -1,7 +1,6 @@
-import * as pulumi from "@pulumi/pulumi";
-import * as gcp from "@pulumi/gcp";
 import * as command from "@pulumi/command";
-import { aliasTransformation } from './transformation';
+import * as gcp from "@pulumi/gcp";
+import * as pulumi from "@pulumi/pulumi";
 
 export interface NetworkConfig {
     workspace: any;
@@ -11,7 +10,6 @@ export interface NetworkConfig {
 
 export class Network extends pulumi.ComponentResource {
     public readonly network: gcp.compute.Network;
-    // public readonly subnetwork: Promise<gcp.compute.GetSubnetworkResult>;
     public readonly natRouter: gcp.compute.Router;
     public readonly natAddress: gcp.compute.Address;
     public readonly natRouterNat: gcp.compute.RouterNat;
@@ -19,19 +17,9 @@ export class Network extends pulumi.ComponentResource {
     constructor(name: string, config: NetworkConfig, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:gcp:Network", name, {}, opts);
 
-        // generated code from state file import
-        // const aptos = new gcp.compute.Network("aptos", {
-        //     name: "aptos-default",
-        //     project: "geoff-miller-pulumi-corp-play",
-        //     routingMode: "REGIONAL",
-        // }, {
-        //     protect: true,
-        // });
-
         // Create a new VPC network
         this.network = new gcp.compute.Network(`aptos`, {
             name: pulumi.interpolate`aptos-${config.workspace}`,
-            // routingMode: "REGIONAL",
             autoCreateSubnetworks: true,
         }, { parent: this });
 
@@ -41,12 +29,6 @@ export class Network extends pulumi.ComponentResource {
             dependsOn: [this.network],
             parent: this
         });
-
-        // this.subnetwork = gcp.compute.getSubnetwork({
-        //     name: String(this.network.name),
-        // }, {
-        //     parent: this
-        // })
 
         // Create a new NAT router
         this.natRouter = new gcp.compute.Router(`nat`, {

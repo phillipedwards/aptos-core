@@ -1,6 +1,3 @@
-import * as aws from '@pulumi/gcp';
-import { node } from '@pulumi/kubernetes';
-import * as command from '@pulumi/command';
 import * as pulumi from '@pulumi/pulumi';
 import { Auth } from "./auth";
 import { Cluster } from "./cluster";
@@ -40,12 +37,6 @@ export class AptosNodeGCP extends pulumi.ComponentResource {
 
         this.security = new Security("security", {
         }, { parent: this });
-
-        // new command.local.Command(`xyz`, {
-        //     create: pulumi.interpolate`echo ${JSON.stringify(config)}`,
-        // }, {
-        //     parent: this
-        // });
 
         this.cluster = new Cluster("cluster", {
             name: pulumi.interpolate`aptos-${workspace}`,

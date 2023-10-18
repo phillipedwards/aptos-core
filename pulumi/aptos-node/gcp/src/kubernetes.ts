@@ -3,7 +3,6 @@ import * as gcp from "@pulumi/gcp";
 import * as k8s from "@pulumi/kubernetes";
 import * as helm from "@pulumi/kubernetes/helm/v3";
 import * as pulumi from "@pulumi/pulumi";
-import { base64decode, base64encode } from '@pulumi/std';
 import * as fs from "fs";
 import * as path from "path";
 import { helmConfig } from './config';
@@ -45,12 +44,8 @@ export class Kubernetes extends pulumi.ComponentResource {
         pulumi.log.info(`enableAutoProvisioning? ${config.gkeEnableNodeAutoprovisioning}`);
 
         const helmReleaseName = pulumi.interpolate`${config.validatorHelmConfig.releaseNameOverride === "" ? config.workspace : config.validatorHelmConfig.releaseNameOverride}`;
-        // const monitoringHelmReleaseName = config.monitoringHelmConfig.releaseNameOverride || "aptos-node-mon2"
-        // const loggerHelmReleaseName = config.loggerHelmConfig.releaseNameOverride || "aptos-node-logger2"
-        // const nodeExporterHelmReleaseName = config.validatorHelmConfig.releaseNameOverride || "aptos-node-node-exporter"
 
         // pulumi example for creating a k8s kubeconfig:: https://github.com/pulumi/pulumi-self-hosted-installers/blob/master/gke-hosted/02-kubernetes/cluster.ts
-        // TODO: move kubeconfig generation to cluster component and output a Output<string> on the cluster as a property
         const kubeconfig = pulumi.all([config.cluster.name, config.cluster.endpoint, config.cluster.masterAuth]).apply(([name, endpoint, masterAuth]) => {
             const context = `${gcp.config.project}_${gcp.config.zone}_${name}`;
             const kubeconfigBuilder = new k8sClientLib.KubeConfig();
@@ -73,7 +68,6 @@ export class Kubernetes extends pulumi.ComponentResource {
                 users: [
                     {
                         name: context,
-                        // token: String(config.cluster.identities.apply(identities => identities[0].oidcs?.[0]?.issuer)).split("id/")[1],
                         authProvider: undefined,
                         exec: {
                             apiVersion: "client.authentication.k8s.io/v1beta1",
@@ -153,7 +147,6 @@ export class Kubernetes extends pulumi.ComponentResource {
                 },
             },
             "service": {
-                // "domain": ,
             },
         };
 
@@ -170,7 +163,6 @@ export class Kubernetes extends pulumi.ComponentResource {
             }
         }
 
-        // chart_sha1       : "8ea883f413730ec8243743e8e000f9c3c2f48af7"
         this.validatorHelmRelease = new helm.Release(`validator`, {
             name: helmReleaseName,
             chart: pulumi.interpolate`${__dirname}${config.aptosNodeHelmChartPath}`,
@@ -212,7 +204,6 @@ export class Kubernetes extends pulumi.ComponentResource {
 
             this.loggerHelmRelease = new helm.Release(`logger`, {
                 name: pulumi.interpolate`${helmReleaseName}-log`,
-                // TODO ask and fix this
                 chart: pulumi.interpolate`${__dirname}${config.loggerHelmConfig.chartPath}`,
                 maxHistory: 10,
                 version: "0.2.0",

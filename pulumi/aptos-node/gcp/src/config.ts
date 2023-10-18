@@ -1,5 +1,4 @@
 import * as pulumi from "@pulumi/pulumi";
-import { parseint } from "@pulumi/std/parseint";
 
 export interface helmConfig {
     chartPath: pulumi.Input<string>;
@@ -152,7 +151,6 @@ export const gkeMaintenancePolicy = {
 };
 
 // Network Configurations
-// TODO: Fix default value
 export const k8sApiSources = new pulumi.Config("network").getObject("k8sApiSources") as string[] || ["0.0.0.0/0"];
 export const clusterIpv4CidrBlock = new pulumi.Config("network").get("clusterIpv4CidrBlock") || "";
 

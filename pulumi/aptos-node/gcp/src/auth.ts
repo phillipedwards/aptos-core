@@ -16,12 +16,7 @@ export class Auth extends pulumi.ComponentResource {
     public readonly k8sDebuggerCustomRole: gcp.projects.IAMCustomRole;
 
     constructor(name: string, config: AuthConfig, opts?: pulumi.ComponentResourceOptions) {
-        // TODO:  super("aptos-node:azure:Auth", name, {}, opts); or type token similar describing what this is doing.
         super("aptos-node:gcp:Auth", name, {}, opts);
-
-        // pulumi.log.debug("XXXXXXXXX")
-        // pulumi.log.debug(`GCP Account Name: aptos-${config.workspace}-gke`);
-        // pulumi.log.debug("XXXXXXXXX")
 
         // Create a new GKE service account
         this.gkeServiceAccount = new gcp.serviceaccount.Account(`gke`, {
@@ -70,9 +65,7 @@ export class Auth extends pulumi.ComponentResource {
                 "container.pods.exec",
             ],
         }, {
-            // import: `projects/geoff-miller-pulumi-corp-play/roles/container.debugger.08feee41`,
             parent: this,
-            protect: false,
         });
 
         // Export the auth information
