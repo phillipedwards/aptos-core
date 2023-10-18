@@ -4,3 +4,8 @@ pulumi-import*
 state.json
 terraform.*.tfstate
 terraform.tfstate
+terraform.tfstate.*
+*.tgz
+*.zip
+*.gz
+*.tar.gz
