@@ -1,2 +1,6 @@
 /bin/
 /node_modules/
+pulumi-import*
+state.json
+terraform.*.tfstate
+terraform.tfstate

@@ -4,7 +4,7 @@ import * as random from "@pulumi/random";
 
 export interface AuthConfig {
     projectId: pulumi.Input<string>;
-    workspace: string;
+    workspace: pulumi.Input<string>;
 }
 
 export class Auth extends pulumi.ComponentResource {
@@ -17,31 +17,43 @@ export class Auth extends pulumi.ComponentResource {
 
     constructor(name: string, config: AuthConfig, opts?: pulumi.ComponentResourceOptions) {
         // TODO:  super("aptos-node:azure:Auth", name, {}, opts); or type token similar describing what this is doing.
-        super("my:auth:Auth", name, {}, opts);
+        super("aptos-node:gcp:Auth", name, {}, opts);
+
+        // pulumi.log.debug("XXXXXXXXX")
+        // pulumi.log.debug(`GCP Account Name: aptos-${config.workspace}-gke`);
+        // pulumi.log.debug("XXXXXXXXX")
 
         // Create a new GKE service account
         this.gkeServiceAccount = new gcp.serviceaccount.Account(`gke`, {
-            accountId: `aptos-${config.workspace}-gke`,
+            accountId: pulumi.interpolate`aptos-${config.workspace}-gke`,
         }, { parent: this });
+
+        const member = pulumi.interpolate`serviceAccount:${this.gkeServiceAccount.email}`
 
         // Create new IAM members for GKE logging, metrics, and monitoring
         this.gkeLoggingIamMember = new gcp.projects.IAMMember(`gke-logging`, {
             project: config.projectId,
             role: "roles/logging.logWriter",
-            member: `serviceAccount:${this.gkeServiceAccount.email}`,
-        }, { parent: this });
+            member: member,
+        }, {
+            parent: this
+        });
 
         this.gkeMetricsIamMember = new gcp.projects.IAMMember(`gke-metrics`, {
             project: config.projectId,
             role: "roles/monitoring.metricWriter",
-            member: `serviceAccount:${this.gkeServiceAccount.email}`,
-        }, { parent: this });
+            member: member,
+        }, {
+            parent: this
+        });
 
         this.gkeMonitoringIamMember = new gcp.projects.IAMMember(`gke-monitoring`, {
             project: config.projectId,
             role: "roles/monitoring.viewer",
-            member: pulumi.interpolate `serviceAccount:${this.gkeServiceAccount.email}`, // string interpolation for outputs requires pulumi.interpolate
-        }, { parent: this });
+            member: member,
+        }, {
+            parent: this
+        });
 
         // Create a new random ID for the K8s debugger custom role
         const k8sDebuggerId = new random.RandomId(`k8s-debugger-id`, {
@@ -50,14 +62,18 @@ export class Auth extends pulumi.ComponentResource {
 
         // Create a new custom role for the K8s debugger
         this.k8sDebuggerCustomRole = new gcp.projects.IAMCustomRole(`k8s-debugger`, {
-            roleId: `container.debugger.${k8sDebuggerId.hex}`,
+            roleId: pulumi.interpolate`container.debugger.${k8sDebuggerId.hex}`,
             title: "Kubernetes Engine Debugger",
             description: "Additional permissions to debug Kubernetes Engine workloads",
             permissions: [
-                "container.pods.exec",
                 "container.pods.portForward",
+                "container.pods.exec",
             ],
-        }, { parent: this });
+        }, {
+            // import: `projects/geoff-miller-pulumi-corp-play/roles/container.debugger.08feee41`,
+            parent: this,
+            protect: false,
+        });
 
         // Export the auth information
         this.k8sDebuggerId = k8sDebuggerId.id;

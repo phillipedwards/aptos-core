@@ -262,6 +262,20 @@
     shell-quote "^1.6.1"
     tmp "^0.0.33"
 
+"@pulumi/kubernetes@^4.4.0":
+  version "4.4.0"
+  resolved "https://registry.npmjs.org/@pulumi/kubernetes/-/kubernetes-4.4.0.tgz"
+  integrity sha512-JBcIny+aAGCsaWT8ih+Je2EYCU5E+927RvgNEiZqHoB1wQTAAoOb3PGfWEkIiZstZorRFkY3tjpA/lctmk+6SA==
+  dependencies:
+    "@pulumi/pulumi" "^3.25.0"
+    "@types/glob" "^5.0.35"
+    "@types/node-fetch" "^2.1.4"
+    "@types/tmp" "^0.0.33"
+    glob "^7.1.2"
+    node-fetch "^2.3.0"
+    shell-quote "^1.6.1"
+    tmp "^0.0.33"
+
 "@pulumi/pulumi@^3.0.0", "@pulumi/pulumi@^3.25.0", "@pulumi/pulumi@^3.47.0":
   version "3.86.0"
   resolved "https://registry.npmjs.org/@pulumi/pulumi/-/pulumi-3.86.0.tgz"

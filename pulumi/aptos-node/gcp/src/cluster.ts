@@ -1,10 +1,11 @@
-import * as pulumi from "@pulumi/pulumi";
+import * as k8sClientLib from '@kubernetes/client-node';
 import * as gcp from "@pulumi/gcp";
+import * as pulumi from "@pulumi/pulumi";
+import { base64encode } from '@pulumi/std/base64encode';
+import { validatorNodeConfig } from './config';
 
 export interface ClusterConfig {
     clusterIpv4CidrBlock: pulumi.Input<string>;
-    gkeEnableAutoscaling: any;
-    gkeEnableNodeAutoprovisioning: pulumi.Input<boolean>;
     gkeMaintenancePolicy: any;
     googleServiceAccountEmail: pulumi.Input<string>;
     k8sApiSources: pulumi.Input<string>[];
@@ -13,11 +14,22 @@ export interface ClusterConfig {
     nodePoolConfigsForUtilities: NodePoolConfig;
     nodePoolConfigsForValidators: NodePoolConfig;
     projectId: string;
+    autoscalingConfig: autoscalingConfig;
+    network: gcp.compute.Network;
+}
+
+export interface autoscalingConfig {
+    gkeEnableNodeAutoprovisioning: pulumi.Input<boolean>;
+    gkeEnableAutoscaling: pulumi.Input<boolean>;
+    gkeNodeAutoprovisioningMaxCpu: pulumi.Input<number>;
+    gkeNodeAutoprovisioningMaxMemory: pulumi.Input<number>;
+    gkeAutoscalingMaxNodeCount: pulumi.Input<number>;
+    gkeAutoscalingMinNodeCount: pulumi.Input<number>;
+    gkeAutoscalingDesiredNodeCount: pulumi.Input<number>;
 }
 
 export interface NodePoolConfig {
     diskSizeGb: pulumi.Input<number>;
-    diskType: pulumi.Input<string>;
     enableTaints: pulumi.Input<boolean>;
     machineType: pulumi.Input<string>;
     maxNodeCount: pulumi.Input<number>;
@@ -29,27 +41,18 @@ export class Cluster extends pulumi.ComponentResource {
     public readonly cluster: gcp.container.Cluster;
     public readonly utilitiesNodePool: gcp.container.NodePool;
     public readonly validatorsNodePool: gcp.container.NodePool;
+    public readonly kubeconfig: pulumi.Output<k8sClientLib.KubeConfig>;
 
     constructor(name: string, config: ClusterConfig, opts?: pulumi.ComponentResourceOptions) {
-        super("my:cluster:Cluster", name, {}, opts);
+        super("aptos-node:gcp:Cluster", name, {}, opts);
 
         // Create a new GKE cluster
-        this.cluster = new gcp.container.Cluster(`cluster`, {
+        this.cluster = new gcp.container.Cluster(`aptos_1`, {
             name: config.name,
             location: config.location,
-            initialNodeCount: 1,
+            network: config.network.id,
             removeDefaultNodePool: true,
-            nodeConfig: {
-                machineType: "n1-standard-2",
-                diskSizeGb: 100,
-                diskType: "pd-standard",
-                oauthScopes: [
-                    "https://www.googleapis.com/auth/compute",
-                    "https://www.googleapis.com/auth/devstorage.read_only",
-                    "https://www.googleapis.com/auth/logging.write",
-                    "https://www.googleapis.com/auth/monitoring",
-                ],
-            },
+            initialNodeCount: 1,
             loggingService: "logging.googleapis.com/kubernetes",
             monitoringService: "monitoring.googleapis.com/kubernetes",
 
@@ -58,7 +61,7 @@ export class Cluster extends pulumi.ComponentResource {
             },
 
             podSecurityPolicyConfig: {
-                enabled: true,
+                enabled: false,
             },
 
             masterAuth: {
@@ -84,12 +87,12 @@ export class Cluster extends pulumi.ComponentResource {
             },
 
             workloadIdentityConfig: {
-                workloadPool: `${config.projectId}.svc.id.goog`,
+                workloadPool: pulumi.interpolate`${config.projectId}.svc.id.goog`,
             },
 
             addonsConfig: {
                 networkPolicyConfig: {
-                    disabled: false,
+                    disabled: true,
                 },
             },
 
@@ -98,16 +101,22 @@ export class Cluster extends pulumi.ComponentResource {
             },
 
             clusterAutoscaling: {
-                enabled: config.gkeEnableNodeAutoprovisioning,
+                enabled: config.autoscalingConfig.gkeEnableAutoscaling,
+                resourceLimits: [
+                    {
+                        resourceType: "cpu",
+                        minimum: 1,
+                        maximum: config.autoscalingConfig.gkeNodeAutoprovisioningMaxCpu,
+                    },
+                    {
+                        resourceType: "memory",
+                        minimum: 1,
+                        maximum: config.autoscalingConfig.gkeNodeAutoprovisioningMaxMemory,
+                    },
+                ],
             },
 
-            maintenancePolicy: {
-                recurringWindow: config.gkeMaintenancePolicy.recurringWindow.map(eachRecurringWindow => ({
-                    startTime: eachRecurringWindow.startTime,
-                    endTime: eachRecurringWindow.endTime,
-                    recurrence: eachRecurringWindow.recurrence,
-                })),
-            },
+            maintenancePolicy: config.gkeMaintenancePolicy || undefined,
         }, { parent: this });
 
         // Create new node pools for utilities and validators
@@ -116,31 +125,7 @@ export class Cluster extends pulumi.ComponentResource {
             location: config.location,
             cluster: this.cluster.name,
             nodeCount: config.nodePoolConfigsForUtilities.minNodeCount,
-            nodeConfig: {
-                machineType: config.nodePoolConfigsForUtilities.machineType,
-                imageType: "COS_CONTAINERD",
-                diskSizeGb: config.nodePoolConfigsForUtilities.diskSizeGb,
-                serviceAccount: config.googleServiceAccountEmail,
-                tags: ["utilities"],
-                oauthScopes: [
-                    "https://www.googleapis.com/auth/cloud-platform",
-                ],
-
-                shieldedInstanceConfig: {
-                    enableSecureBoot: true,
-                },
-
-                workloadMetadataConfig: {
-                    mode: "GKE_METADATA",
-                },
-
-                taints: config.nodePoolConfigsForUtilities.enableTaints ? [{
-                    key: "aptos-node/utility",
-                    value: "true",
-                    effect: "NoExecute",
-                }] : [],
-            },
-            autoscaling: config.gkeEnableAutoscaling ? {
+            autoscaling: config.autoscalingConfig.gkeEnableAutoscaling ? {
                 minNodeCount: config.nodePoolConfigsForUtilities.minNodeCount,
                 maxNodeCount: config.nodePoolConfigsForUtilities.maxNodeCount,
             } : {},
@@ -171,14 +156,46 @@ export class Cluster extends pulumi.ComponentResource {
 
                 taints: config.nodePoolConfigsForValidators.enableTaints ? [{
                     key: "aptos.org/nodepool",
-                    value: "true",
-                    effect: "NoExecute",
+                    value: "validators",
+                    effect: "NO_EXECUTE",
                 }] : [],
             },
-            autoscaling: config.gkeEnableAutoscaling ? {
-                minNodeCount: config.nodePoolConfigsForValidators.minNodeCount,
-                maxNodeCount: config.nodePoolConfigsForValidators.maxNodeCount,
+            autoscaling: config.autoscalingConfig.gkeEnableAutoscaling ? {
+                minNodeCount: config.nodePoolConfigsForUtilities.minNodeCount,
+                maxNodeCount: config.nodePoolConfigsForUtilities.maxNodeCount,
             } : {},
         }, { parent: this });
+
+        // pulumi example for creating a k8s kubeconfig:: https://github.com/pulumi/pulumi-self-hosted-installers/blob/master/gke-hosted/02-kubernetes/cluster.ts
+        // TODO: move kubeconfig generation to cluster component and output a Output<string> on the cluster as a property
+        this.kubeconfig = pulumi.all([this.cluster.name, this.cluster.endpoint, this.cluster.masterAuth.clusterCaCertificate]).apply(([name, endpoint, clusterCert]) => {
+            const kubeconfigBuilder = new k8sClientLib.KubeConfig();
+            kubeconfigBuilder.loadFromOptions({
+                clusters: [
+                    {
+                        name: name,
+                        server: endpoint,
+                        caData: clusterCert,
+                    },
+                ],
+                contexts: [
+                    {
+                        name: name,
+                        cluster: name,
+                        user: name,
+                    },
+                ],
+                currentContext: name,
+                users: [
+                    {
+                        name: name,
+                        // token: String(config.cluster.identities.apply(identities => identities[0].oidcs?.[0]?.issuer)).split("id/")[1],
+                        authProvider: undefined,
+                        exec: undefined,
+                    },
+                ],
+            });
+            return kubeconfigBuilder;
+        });
     }
 }

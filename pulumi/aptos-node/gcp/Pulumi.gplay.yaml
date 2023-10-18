@@ -1,0 +1,56 @@
+config:
+  aptos:clusterBootstrap: false
+  aptos:workspaceNameOverride: "default"
+  aptos:autoscalingConfig:
+        enabled: true
+        minNodeCount: 2
+        maxNodeCount: 10
+        desiredNodeCount: 1
+  aptos:autoprovisioningConfig:
+        enabled: true
+        maxCpu: 10
+        maxMemory: 100
+  aptos:validatorName: gmvalidator
+  featureFlags:enableMonitoring: true
+  featureFlags:enableLogging: true
+  featureFlags:enableNodeExporter: false
+  gcp:project: geoff-miller-pulumi-corp-play
+  gcp:region: us-central1
+  gcp:zone: us-central1-a
+  # gcp:gkeMaintenancePolicy:
+  #   recurringWindow:
+  #     startTime: "2023-06-15T00:00:00Z"
+  #     endTime: "2023-06-15T23:59:00Z"
+  #     recurrence: "FREQ=DAILY"
+  # k8sApiSources:
+  #   - name: my-api-source
+  #     url: https://my-api-source.com
+  # clusterIpv4CidrBlock: 10.0.0.0/24
+  # era: my-era
+  # chainId: my-chain-id
+  # chainName: my-chain-name
+  dns:config:
+    zoneName: geoff
+    zoneProject: geoff-miller-pulumi-corp-play
+    # dnsGCPZoneSuffix: my-zone-suffix
+    # dnsTTL: 300
+    enableDnsRecordCreation: true
+  # validatorHelmConfig:
+  #   manageViaPulumi: true
+  # utilitiesHelmConfig:
+  #   manageViaPulumi: true
+  # monitoringHelmConfig:
+  #   manageViaPulumi: true
+  # loggerHelmConfig:
+  #   manageViaPulumi: true
+  # nodeExporterHelmValues: {}
+  utility:node:
+    machineType: "n2-standard-32"
+    diskSizeGb: 20
+    instanceNum: 1
+    enableTaint: true
+  validator:node:
+    machineType: "n2-standard-32"
+    diskSizeGb: 20
+    instanceNum: 1
+    enableTaint: true

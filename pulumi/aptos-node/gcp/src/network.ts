@@ -1,6 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as gcp from "@pulumi/gcp";
 import * as command from "@pulumi/command";
+import { aliasTransformation } from './transformation';
 
 export interface NetworkConfig {
     workspace: any;
@@ -16,11 +17,21 @@ export class Network extends pulumi.ComponentResource {
     public readonly natRouterNat: gcp.compute.RouterNat;
 
     constructor(name: string, config: NetworkConfig, opts?: pulumi.ComponentResourceOptions) {
-        super("my:network:Network", name, {}, opts);
+        super("aptos-node:gcp:Network", name, {}, opts);
+
+        // generated code from state file import
+        // const aptos = new gcp.compute.Network("aptos", {
+        //     name: "aptos-default",
+        //     project: "geoff-miller-pulumi-corp-play",
+        //     routingMode: "REGIONAL",
+        // }, {
+        //     protect: true,
+        // });
 
         // Create a new VPC network
         this.network = new gcp.compute.Network(`aptos`, {
-            name: `aptos-${config.workspace}`,
+            name: pulumi.interpolate`aptos-${config.workspace}`,
+            // routingMode: "REGIONAL",
             autoCreateSubnetworks: true,
         }, { parent: this });
 
@@ -39,7 +50,7 @@ export class Network extends pulumi.ComponentResource {
 
         // Create a new NAT router
         this.natRouter = new gcp.compute.Router(`nat`, {
-            name: `aptos-${config.workspace}-nat`,
+            name: pulumi.interpolate`aptos-${config.workspace}-nat`,
             network: this.network.selfLink,
         }, {
             dependsOn: [sleep],
@@ -47,8 +58,8 @@ export class Network extends pulumi.ComponentResource {
         });
 
         // Create a new NAT address
-        this.natAddress = new gcp.compute.Address(`nat-address`, {
-            name: `aptos-${config.workspace}-nat`,
+        this.natAddress = new gcp.compute.Address(`nat`, {
+            name: pulumi.interpolate`aptos-${config.workspace}-nat`,
         }, {
             dependsOn: [sleep],
             parent: this
@@ -56,10 +67,11 @@ export class Network extends pulumi.ComponentResource {
 
         // Create a new NAT router NAT
         this.natRouterNat = new gcp.compute.RouterNat(`nat`, {
-            name: `aptos-${config.workspace}-nat`,
+            name: pulumi.interpolate`aptos-${config.workspace}-nat`,
             router: this.natRouter.name,
             natIpAllocateOption: "MANUAL_ONLY",
-            sourceSubnetworkIpRangesToNat: "ALL_SUBNETWORKS_ALL_IP_RANGES",
+            natIps: [this.natAddress.selfLink],
+            sourceSubnetworkIpRangesToNat: "ALL_SUBNETWORKS_ALL_PRIMARY_IP_RANGES",
         }, {
             dependsOn: [sleep],
             parent: this
