@@ -1,14 +1,19 @@
 name: aws
 description: TODO
-runtime: 
+runtime:
   name: nodejs
-main: ./src/
+  options:
+    typescript: true
+main: ./src
 config:
-  aws:region:
-    value: 'TODO: var.region'
-  kubernetes:clusterCaCertificate:
-    value: 'TODO: base64decode(aws_eks_cluster.aptos.certificate_authority.0.data)'
-  kubernetes:host:
-    value: 'TODO: aws_eks_cluster.aptos.endpoint'
-  kubernetes:token:
-    value: 'TODO: data.aws_eks_cluster_auth.aptos.token'
+  pulumi:disable-default-providers:
+    - aws
+    - kubernetes
+  # aws:region:
+  #   value: "TODO: var.region"
+  # kubernetes:clusterCaCertificate:
+  #   value: "TODO: base64decode(aws_eks_cluster.aptos.certificate_authority.0.data)"
+  # kubernetes:host:
+  #   value: "TODO: aws_eks_cluster.aptos.endpoint"
+  # kubernetes:token:
+  #   value: "TODO: data.aws_eks_cluster_auth.aptos.token"

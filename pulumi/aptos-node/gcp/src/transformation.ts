@@ -2,12 +2,6 @@ import * as pulumi from '@pulumi/pulumi';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 
-import {
-    enableMonitoring,
-    enableLogging,
-    enableNodeExporter,
-} from "./config";
-
 export const aliasTransformation: pulumi.ResourceTransformation = (args) => {
     args.opts.aliases = args.opts.aliases || []
     args.opts.aliases.push(
@@ -88,19 +82,6 @@ export const addImports: pulumi.ResourceTransformation = (args) => {
     }
 
     return args;
-}
-
-function configTrueToBool(key: string, value: any) {
-    // if key contains "enabled" or "enable" and value is "true" or "false"
-    if (key.includes("enabled") || key.includes("enable")) {
-        if (value === "true") {
-            return true;
-        } else if (value === "false") {
-            return false;
-        }
-    }
-    // Return the original value if it's not a string or couldn't be parsed
-    return value;
 }
 
 // type: kubernetes:helm.sh/v3: Release

@@ -1,78 +1,11 @@
-import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
-
-import {
-    config,
-    workspaceNameOverride,
-    workspaceName,
-    region,
-    // AWS Configurations
-    awsConfig,
-    numAzs,
-    kubernetesVersion,
-    k8sApiSources,
-    // Aptos Configurations
-    numValidators,
-    numFullnodeGroups,
-    era,
-    chainId,
-    chainName,
-    validatorName,
-    imageTag,
-    // DNS Configurations
-    zoneId,
-    workspaceDns,
-    recordName,
-    createRecords,
-    // Helm Configurations
-    helmChart,
-    helmValues,
-    helmValuesFile,
-    // Kubernetes User Configurations
-    k8sAdmins,
-    k8sAdminRoles,
-    k8sViewers,
-    k8sViewerRoles,
-    k8sDebuggers,
-    k8sDebuggerRoles,
-    // IAM Configurations
-    iamPath,
-    permissionsBoundaryPolicy,
-    // VPC Configurations
-    vpcCidrBlock,
-    maximizeSingleAzCapacity,
-    // Utility Node Configurations
-    utilityInstanceType,
-    utilityInstanceNum,
-    utilityInstanceMinNum,
-    utilityInstanceMaxNum,
-    utilityInstanceEnableTaint,
-    // Validator Node Configurations
-    validatorInstanceType,
-    validatorInstanceNum,
-    validatorInstanceMinNum,
-    validatorInstanceMaxNum,
-    validatorInstanceEnableTaint,
-    // Monitoring and Logging Configurations
-    enableCalico,
-    enableLogger,
-    loggerHelmValues,
-    enableMonitoring,
-    monitoringHelmValues,
-    enablePrometheusNodeExporter,
-    enableKubeStateMetrics,
-    // Miscellaneous Configurations
-    helmReleaseNameOverride,
-    validatorStorageClass,
-    fullnodeStorageClass,
-    manageViaTf,
-} from "./config";
-
+import * as pulumi from '@pulumi/pulumi';
 import { Auth } from "./auth";
 import { Cluster } from "./cluster";
+import * as config from "./config";
 import { DNS } from "./dns";
-import { Network } from "./network";
 import { Kubernetes } from "./kubernetes";
+import { Network } from "./network";
 // import { Security } from "./security";
 
 /**
@@ -82,7 +15,7 @@ import { Kubernetes } from "./kubernetes";
  */
 export class AptosNodeAWS extends pulumi.ComponentResource {
 
-    public readonly awsEipNatPublicIp: pulumi.Output<string>;
+    public readonly awsEipNatPublicIp: pulumi.Output<string> | undefined;
     public readonly awsEksCluster: aws.eks.Cluster;
     public readonly awsEksClusterAuthToken: pulumi.Output<string>;
     public readonly awsSubnetPrivate: aws.ec2.Subnet[];
@@ -104,47 +37,45 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
             parent: this
         };
 
-        const availableZones = aws.getAvailabilityZones({
-            state: "available",
-        });
-
         const network = new Network("network", {
-            awsAvailabilityZones: availableZones,
-            maximizeSingleAzCapacity: maximizeSingleAzCapacity,
-            vpcCidrBlock: vpcCidrBlock,
-            workspaceName: workspaceName,
+            azs: config.azs,
+            maximizeSingleAzCapacity: config.maximizeSingleAzCapacity,
+            vpcCidrBlock: config.vpcCidrBlock,
+            workspaceName: config.workspaceName,
         }, options);
 
         const auth = new Auth("auth", {
-            iamPath: iamPath,
-            permissionsBoundaryPolicy: permissionsBoundaryPolicy,
-            workspaceName: workspaceName,
+            iamPath: config.iamPath,
+            permissionsBoundaryPolicy: config.permissionsBoundaryPolicy,
+            workspaceName: config.workspaceName,
         }, options);
 
         const cluster = new Cluster("validator", {
-            clusterName: `aptos-${workspaceName}`,
+            clusterName: `aptos-${config.workspaceName}`,
+            // tags: {},
             clusterRoleArn: auth.clusterRole.arn,
+            workspaceName: config.workspaceName,
             nodeRoleArn: auth.nodesRole.arn,
-            instanceType: utilityInstanceType,
-            kubernetesVersion: kubernetesVersion,
+            instanceType: config.utilityInstanceType,
+            kubernetesVersion: config.kubernetesVersion,
             privateSubnetIds: network.privateSubnets.map(subnet => subnet.id),
             publicSubnetIds: network.publicSubnets.map(subnet => subnet.id),
             securityGroupIdNodes: network.nodesSecurityGroup.id,
             securityGroupIdCluster: network.clusterSecurityGroup.id,
-            k8sApiSources: k8sApiSources,
+            k8sApiSources: config.k8sApiSources,
             utilitiesNodePool: {
-                instance_type: utilityInstanceType,
-                instance_enable_taint: String(utilityInstanceEnableTaint),
-                instance_max_num: String(utilityInstanceMaxNum),
-                instance_min_num: String(utilityInstanceMinNum),
-                instance_num: String(utilityInstanceNum),
+                instance_type: config.utilityInstanceType,
+                instance_enable_taint: config.utilityInstanceEnableTaint,
+                instance_max_num: config.utilityInstanceMaxNum,
+                instance_min_num: config.utilityInstanceMinNum,
+                instance_num: config.utilityInstanceNum,
             },
             validatorsNodePool: {
-                instance_type: validatorInstanceType,
-                instance_enable_taint: String(validatorInstanceEnableTaint),
-                instance_max_num: String(validatorInstanceMaxNum),
-                instance_min_num: String(validatorInstanceMinNum),
-                instance_num: String(validatorInstanceNum),
+                instance_type: config.validatorInstanceType,
+                instance_enable_taint: config.validatorInstanceEnableTaint,
+                instance_max_num: config.validatorInstanceMaxNum,
+                instance_min_num: config.validatorInstanceMinNum,
+                instance_num: config.validatorInstanceNum,
             },
             // TODO: Tagging
         }, options);
@@ -164,10 +95,10 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
         //     ingressRules: [], // Define your ingress rules here
         // }, options);
 
-        if (recordName && recordName !== "") {
+        if (config.recordName && pulumi.interpolate`${config.recordName}` !== pulumi.interpolate``) {
             const dns = new DNS("validator", {
-                domainName: recordName,
-                hostedZoneId: zoneId,
+                domainName: config.recordName,
+                hostedZoneId: config.zoneId,
                 lbDnsName: cluster.eksCluster.endpoint,
             }, options);
 
@@ -175,7 +106,7 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
             this.fullnodeEndpoint = dns.fullnodeRecord.fqdn;
         }
 
-        this.awsEipNatPublicIp = network.natEip.address.apply(address => address || "");
+        this.awsEipNatPublicIp = network.natEip ? network.natEip.address.apply(address => address || "") : undefined;
         this.awsEksCluster = cluster.eksCluster;
         this.awsEksClusterAuthToken = cluster.eksCluster.certificateAuthorities?.apply(ca => ca[0].data);
         this.awsSubnetPrivate = network.privateSubnets;

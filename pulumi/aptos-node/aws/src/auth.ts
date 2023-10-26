@@ -2,19 +2,15 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 
 export interface AuthConfig {
-    workspaceName: string;
-    iamPath: string;
-    permissionsBoundaryPolicy?: string;
+    workspaceName: pulumi.Input<string>;
+    iamPath: pulumi.Input<string>;
+    permissionsBoundaryPolicy?: pulumi.Input<string>;
 }
 
 export class Auth extends pulumi.ComponentResource {
     public readonly clusterRole: aws.iam.Role;
     public readonly nodesRole: aws.iam.Role;
-    public readonly clusterPolicyAttachment: aws.iam.RolePolicyAttachment;
-    public readonly nodesPolicyAttachment: aws.iam.RolePolicyAttachment;
     public readonly nodesInstanceProfile: aws.iam.InstanceProfile;
-    public readonly nodesCniPolicyAttachment: aws.iam.RolePolicyAttachment;
-    public readonly nodesEcrPolicyAttachment: aws.iam.RolePolicyAttachment;
 
     constructor(name: string, args: AuthConfig, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:Auth", name, {}, opts);
@@ -27,13 +23,17 @@ export class Auth extends pulumi.ComponentResource {
                 Statement: [
                     {
                         Action: "sts:AssumeRole",
+                        Effect: "Allow",
                         Principal: {
                             Service: "ec2.amazonaws.com"
                         },
-                        Effect: "Allow",
                     }
                 ]
             }),
+            managedPolicyArns: [
+                "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
+                "arn:aws:iam::aws:policy/AmazonEKSServicePolicy",
+            ],
             permissionsBoundary: args.permissionsBoundaryPolicy,
         }, { parent: this });
 
@@ -51,47 +51,22 @@ export class Auth extends pulumi.ComponentResource {
                         Effect: "Allow",
                     }
                 ]
-            })
-        }, { parent: this });
-
-        this.clusterPolicyAttachment = new aws.iam.RolePolicyAttachment(`cluster-cluster`, {
-            policyArn: "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
-            role: this.clusterRole.name,
-        }, { parent: this });
-
-        this.nodesPolicyAttachment = new aws.iam.RolePolicyAttachment(`cluster-service`, {
-            policyArn: "arn:aws:iam::aws:policy/AmazonEKSServicePolicy",
-            role: this.nodesRole.name,
-        }, { parent: this });
-
-        this.nodesPolicyAttachment = new aws.iam.RolePolicyAttachment(`nodes-node`, {
-            policyArn: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
-            role: this.nodesRole.name,
+            }),
+            managedPolicyArns: [
+                "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+                "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+                "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+            ],
         }, { parent: this });
 
         this.nodesInstanceProfile = new aws.iam.InstanceProfile(`nodes`, {
-            name: `nodes`,
-            role: this.nodesRole.name,
-        }, { parent: this });
-
-        this.nodesCniPolicyAttachment = new aws.iam.RolePolicyAttachment(`nodes-cni`, {
-            policyArn: "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-            role: this.nodesRole.name,
-        }, { parent: this });
-
-        this.nodesEcrPolicyAttachment = new aws.iam.RolePolicyAttachment(`nodes-ecr`, {
-            policyArn: "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+            name: pulumi.interpolate`aptos-${args.workspaceName}-nodes`,
             role: this.nodesRole.name,
         }, { parent: this });
 
         this.registerOutputs({
             clusterRole: this.clusterRole,
             nodesRole: this.nodesRole,
-            clusterPolicyAttachment: this.clusterPolicyAttachment,
-            nodesPolicyAttachment: this.nodesPolicyAttachment,
-            nodesInstanceProfile: this.nodesInstanceProfile,
-            nodesCniPolicyAttachment: this.nodesCniPolicyAttachment,
-            nodesEcrPolicyAttachment: this.nodesEcrPolicyAttachment,
         });
     }
 }

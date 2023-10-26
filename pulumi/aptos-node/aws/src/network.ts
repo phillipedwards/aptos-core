@@ -1,64 +1,11 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
-import { SubnetInfo, ip4, ip6, toLongForm, toShortForm, toByteArray, fromByteArray } from 'ip6';
-
-export interface SubnetInfo {
-    firstAddress: string;
-    lastAddress: string;
-    subnetMaskLength: number;
-    cidr: string;
-}
-
-// Function to calculate next available subnet
-export const getNextSubnet = (cidr: string, newBits: number, nth: number): string => {
-    const [ip, bits] = cidr.split('/');
-    const ipBytes = toByteArray(ip);
-    const newBitsValue = nth << (32 - (Number(bits) + newBits));
-    const newIpBytes = new Uint8Array(4);
-
-    for (let i = 0; i < 4; i++) {
-        newIpBytes[i] = ipBytes[i] | ((newBitsValue >> ((3 - i) * 8)) & 0xFF);
-    }
-
-    const newIp = fromByteArray(newIpBytes);
-    return `${newIp}/${Number(bits) + newBits}`;
-};
-
-// Function to calculate multiple subnets
-/**
- * Returns an array of subnet information objects based on the provided CIDR block, number of subnets, and subnet sizes.
- * @param cidr - The CIDR block to use for subnetting.
- * @param numSubnets - The number of subnets to create.
- * @param subnetSizes - An array of subnet sizes to use for each subnet. If not provided, the last subnet size will be used for all subnets.
- * @returns An array of subnet information objects.
- */
-export function getSubnets(cidr: string, numSubnets: number, subnetSizes: number[]): SubnetInfo[] {
-    const isIPv6 = cidr.includes(':');
-    const ip = isIPv6 ? ip6 : ip4;
-    const subnets: SubnetInfo[] = [];
-
-    let nextSubnet = ip.cidrSubnet(cidr);
-
-    for (let i = 0; i < numSubnets; i++) {
-        const subnetSize = subnetSizes[i] || subnetSizes[subnetSizes.length - 1];
-        const newSubnet = ip.cidrSubnet(nextSubnet.firstAddress + '/' + subnetSize);
-        subnets.push({
-            ...newSubnet,
-            cidr: `${newSubnet.firstAddress}/${newSubnet.subnetMaskLength}`  // Add this line
-        });
-
-        // Update nextSubnet to start where the last one ended
-        nextSubnet = ip.cidrSubnet(newSubnet.lastAddress + '/' + nextSubnet.subnetMaskLength);
-    }
-
-    return subnets;
-}
 
 export interface NetworkConfig {
     vpcCidrBlock: string;
-    awsAvailabilityZones: Promise<aws.GetAvailabilityZonesResult>
-    maximizeSingleAzCapacity: boolean;
-    workspaceName: string;
+    azs: pulumi.Input<string>[];
+    maximizeSingleAzCapacity: pulumi.Input<boolean>;
+    workspaceName: pulumi.Input<string>;
 }
 
 export class Network extends pulumi.ComponentResource {
@@ -68,8 +15,8 @@ export class Network extends pulumi.ComponentResource {
     public readonly internetGateway: aws.ec2.InternetGateway;
     public readonly publicRouteTable: aws.ec2.RouteTable;
     public readonly privateRouteTable: aws.ec2.RouteTable;
-    public readonly natEip: aws.ec2.Eip;
-    public readonly natGateway: aws.ec2.NatGateway;
+    public readonly natEip: aws.ec2.Eip | undefined;
+    public readonly natGateway: aws.ec2.NatGateway | undefined;
     public readonly clusterSecurityGroup: aws.ec2.SecurityGroup;
     public readonly nodesSecurityGroup: aws.ec2.SecurityGroup;
     public readonly nodesEgressSecurityGroupRule: aws.ec2.SecurityGroupRule;
@@ -77,28 +24,40 @@ export class Network extends pulumi.ComponentResource {
     constructor(name: string, config: NetworkConfig, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:Network", name, {}, opts);
 
-        const numAzs = Number(config.awsAvailabilityZones.then(azs => azs.names.length));
+        const cidr = "192.168.0.0/16"
+        const publicSubnetCidrRanges = [
+            "192.168.0.0/19" as pulumi.Input<string>,
+            "192.168.32.0/19" as pulumi.Input<string>,
+            "192.168.64.0/19" as pulumi.Input<string>,
+        ]
+        const privateSubnetCidrRanges = [
+            "192.168.128.0/19" as pulumi.Input<string>,
+            "192.168.160.0/19" as pulumi.Input<string>,
+            "192.168.192.0/19" as pulumi.Input<string>,
+        ]
+
+        const numAzs = Number(config.azs.length);
         const numOtherSubnets = numAzs * 2 - 1;
-        const maxSubnetCidrRanges = getSubnets(config.vpcCidrBlock, 1, [
-            ...Array.from({ length: numOtherSubnets }, (_, i) => 1 + Math.ceil(Math.pow(numOtherSubnets, 0.5))),
-        ]);
+        // const maxSubnetCidrRanges = getSubnets(config.vpcCidrBlock, 1, [
+        //     ...Array.from({ length: numOtherSubnets }, (_, i) => 1 + Math.ceil(Math.pow(numOtherSubnets, 0.5))),
+        // ]);
 
-        const maxPrivateSubnetCidrRanges = maxSubnetCidrRanges.slice(0, numAzs).map(subnet => subnet.cidr);
-        const maxPublicSubnetCidrRanges = maxSubnetCidrRanges.slice(numAzs, numAzs * 2).map(subnet => subnet.cidr);
+        // const maxPrivateSubnetCidrRanges = maxSubnetCidrRanges.slice(0, numAzs).map(subnet => subnet.cidr);
+        // const maxPublicSubnetCidrRanges = maxSubnetCidrRanges.slice(numAzs, numAzs * 2).map(subnet => subnet.cidr);
 
-        const defaultPublicSubnetCidrRanges = Array.from({ length: numAzs }, (_, i) =>
-            getNextSubnet(getNextSubnet(config.vpcCidrBlock, 1, 0), 2, i)
-        );
-        const defaultPrivateSubnetCidrRanges = Array.from({ length: numAzs }, (_, i) =>
-            getNextSubnet(getNextSubnet(config.vpcCidrBlock, 1, 1), 2, i)
-        );
+        // const defaultPublicSubnetCidrRanges = Array.from({ length: numAzs }, (_, i) =>
+        //     getNextSubnet(getNextSubnet(config.vpcCidrBlock, 1, 0), 2, i)
+        // );
+        // const defaultPrivateSubnetCidrRanges = Array.from({ length: numAzs }, (_, i) =>
+        //     getNextSubnet(getNextSubnet(config.vpcCidrBlock, 1, 1), 2, i)
+        // );
 
-        const publicSubnetCidrRanges = config.maximizeSingleAzCapacity
-            ? maxPublicSubnetCidrRanges
-            : defaultPublicSubnetCidrRanges;
-        const privateSubnetCidrRanges = config.maximizeSingleAzCapacity
-            ? maxPrivateSubnetCidrRanges
-            : defaultPrivateSubnetCidrRanges;
+        // const publicSubnetCidrRanges = config.maximizeSingleAzCapacity
+        //     ? maxPublicSubnetCidrRanges
+        //     : defaultPublicSubnetCidrRanges;
+        // const privateSubnetCidrRanges = config.maximizeSingleAzCapacity
+        //     ? maxPrivateSubnetCidrRanges
+        //     : defaultPrivateSubnetCidrRanges;
 
         const aptosK8sTagKey = `kubernetes.io/cluster/aptos-${config.workspaceName}`
 
@@ -106,8 +65,8 @@ export class Network extends pulumi.ComponentResource {
             cidrBlock: config.vpcCidrBlock,
             enableDnsHostnames: true,
             tags: {
-                "name": `aptos-${config.workspaceName}`,
-                aptosK8sTagKey: "shared",
+                "Name": `aptos-${config.workspaceName}`,
+                [aptosK8sTagKey]: "shared",
             },
         }, { parent: this });
 
@@ -115,15 +74,16 @@ export class Network extends pulumi.ComponentResource {
         this.privateSubnets = [];
 
         for (let i = 0; i < numAzs; i++) {
-            const thisAZ = config.awsAvailabilityZones.then(azs => azs.names[i])
+            const thisAZ = config.azs[i];
             const publicSubnet = new aws.ec2.Subnet(`public-${i}`, {
                 vpcId: this.vpc.id,
                 cidrBlock: publicSubnetCidrRanges[i],
                 availabilityZone: thisAZ,
+                mapPublicIpOnLaunch: true,
                 tags: {
                     "Name": `aptos-${config.workspaceName}/public-${thisAZ}`,
-                    aptosK8sTagKey: "shared",
-                    aptosK8sTagKeyPublicAzs: "1",
+                    [aptosK8sTagKey]: "shared",
+                    "kubernetes.io/role/elb": "1",
                 },
             }, { parent: this.vpc });
 
@@ -133,7 +93,7 @@ export class Network extends pulumi.ComponentResource {
                 availabilityZone: thisAZ,
                 tags: {
                     'Name': `aptos-${config.workspaceName}/private-${thisAZ}`,
-                    aptosK8sTagKey: "shared",
+                    [aptosK8sTagKey]: "shared",
                     "kubernetes.io/role/internal-elb": '1',
                 },
             }, { parent: this.vpc });
@@ -143,6 +103,7 @@ export class Network extends pulumi.ComponentResource {
         }
 
         this.internetGateway = new aws.ec2.InternetGateway(`public`, {
+            vpcId: this.vpc.id,
             tags: {
                 "Name": `aptos-${config.workspaceName}`,
             }
@@ -150,52 +111,64 @@ export class Network extends pulumi.ComponentResource {
 
         this.publicRouteTable = new aws.ec2.RouteTable(`public`, {
             vpcId: this.vpc.id,
+            routes: [{
+                cidrBlock: "0.0.0.0/0",
+                gatewayId: this.internetGateway.id,
+            }],
             tags: {
                 "Name": `aptos-${config.workspaceName}/public`,
             },
         }, { parent: this.vpc });
 
-        new aws.ec2.Route(`public`, {
-            routeTableId: this.publicRouteTable.id,
-            destinationCidrBlock: "0.0.0.0/0",
-            gatewayId: this.internetGateway.id,
-        }, { parent: this.publicRouteTable });
-
-        this.privateRouteTable = new aws.ec2.RouteTable(`private`, {
-            vpcId: this.vpc.id,
-            tags: {
-                "Name": `aptos-${config.workspaceName}/private`,
-            },
-        }, { parent: this.vpc });
-
-        for (let i = 0; i < numAzs; i++) {
-            new aws.ec2.RouteTableAssociation(`public-${i}`, {
-                subnetId: this.publicSubnets[i].id,
-                routeTableId: this.publicRouteTable.id,
-            }, { parent: this.publicSubnets[i] });
-
-            new aws.ec2.RouteTableAssociation(`private-${i}`, {
-                subnetId: this.privateSubnets[i].id,
-                routeTableId: this.privateRouteTable.id,
-            }, { parent: this.privateSubnets[i] });
-        }
-
         this.natEip = new aws.ec2.Eip(`nat`, {
+            tags: {
+                "Name": `aptos-${config.workspaceName}-nat`,
+            },
         }, { parent: this });
 
         this.natGateway = new aws.ec2.NatGateway(`private`, {
             allocationId: this.natEip.id,
             subnetId: this.publicSubnets[0].id,
-        }, { parent: this.publicSubnets[0] });
+        }, {
+            dependsOn: [
+                ...this.publicSubnets,
+            ],
+            parent: this.publicSubnets[0]
+        });
 
-        new aws.ec2.Route(`private`, {
-            routeTableId: this.privateRouteTable.id,
-            destinationCidrBlock: "0.0.0.0/0",
-            natGatewayId: this.natGateway.id,
-        }, { parent: this.privateRouteTable });
+        this.privateRouteTable = new aws.ec2.RouteTable(`private`, {
+            vpcId: this.vpc.id,
+            routes: [{
+                cidrBlock: "0.0.0.0/0",
+                natGatewayId: this.natGateway.id,
+            }],
+        }, { parent: this.vpc });
+
+        if (numAzs > 0) {
+
+            for (let i = 0; i < numAzs; i++) {
+                new aws.ec2.RouteTableAssociation(`public-${i}`, {
+                    subnetId: this.publicSubnets[i].id,
+                    routeTableId: this.publicRouteTable.id,
+                }, { parent: this.publicSubnets[i] });
+
+                new aws.ec2.RouteTableAssociation(`private-${i}`, {
+                    subnetId: this.privateSubnets[i].id,
+                    routeTableId: this.privateRouteTable.id,
+                }, { parent: this.privateSubnets[i] });
+            }
+
+            new aws.ec2.Route(`private`, {
+                routeTableId: this.privateRouteTable.id,
+                destinationCidrBlock: "0.0.0.0/0",
+                natGatewayId: this.natGateway.id,
+            }, { parent: this.privateRouteTable });
+        }
 
         this.clusterSecurityGroup = new aws.ec2.SecurityGroup(`cluster`, {
             vpcId: this.vpc.id,
+            name: pulumi.interpolate`aptos-${config.workspaceName}/cluster`,
+            description: "k8s masters",
             tags: {
                 "kubernetes.io/cluster/aptos-${config.workspaceName}": "owned",
             },
@@ -221,6 +194,8 @@ export class Network extends pulumi.ComponentResource {
 
         this.nodesSecurityGroup = new aws.ec2.SecurityGroup(`nodes`, {
             vpcId: this.vpc.id,
+            name: pulumi.interpolate`aptos-${config.workspaceName}/nodes`,
+            description: "k8s nodes",
             tags: {
                 "kubernetes.io/cluster/aptos-${config.workspaceName}": "owned",
             },

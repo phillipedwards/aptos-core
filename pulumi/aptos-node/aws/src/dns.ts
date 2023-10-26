@@ -4,8 +4,8 @@ import * as aws from "@pulumi/aws";
 import * as command from "@pulumi/command";
 
 export interface DNSConfig {
-    domainName: string;
-    hostedZoneId: string;
+    domainName: pulumi.Input<string>;
+    hostedZoneId: pulumi.Input<string>;
     lbDnsName: pulumi.Input<string>;
 }
 
@@ -22,19 +22,19 @@ export class DNS extends pulumi.ComponentResource {
             create: "sleep 120"
         }, { parent: this });
 
-        const validatorDnsName = new random.RandomString(`validator`, {
+        const validatorDnsName = new random.RandomString(`validator-dns`, {
             length: 16,
-            special: false,
-            upper: false,
+            special: true,
+            upper: true,
         }, {
             dependsOn: sleep,
             parent: this
         }).result;
 
         const validatorRecord = new aws.route53.Record(`validator`, {
-            name: `${validatorDnsName}.${args.domainName}`,
+            name: pulumi.interpolate`${validatorDnsName}.${args.domainName}`,
             type: "CNAME",
-            ttl: 300,
+            ttl: 3600,
             records: [args.lbDnsName],
             zoneId: args.hostedZoneId,
         }, {

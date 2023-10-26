@@ -2,6 +2,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
 import * as aws from "@pulumi/aws";
 import * as k8sClientLib from '@kubernetes/client-node';
+import { awsProvider } from './aws'
 
 interface KubernetesConfig {
     eksCluster: aws.eks.Cluster;
@@ -173,7 +174,7 @@ export class Kubernetes extends pulumi.ComponentResource {
             ],
         }, { provider, parent: this });
 
-        const debuggersRoleBinding = new k8s.rbac.v1.RoleBinding(`${name}-debuggers-role-binding`, {
+        const debuggersRoleBinding = new k8s.rbac.v1.RoleBinding(`debuggers`, {
             metadata: {
                 name: "debuggers",
                 namespace: "default",
@@ -191,7 +192,7 @@ export class Kubernetes extends pulumi.ComponentResource {
             ],
         }, { provider, parent: this });
 
-        const viewersRoleBinding = new k8s.rbac.v1.RoleBinding(`${name}-viewers-role-binding`, {
+        const viewersRoleBinding = new k8s.rbac.v1.RoleBinding(`viewers`, {
             metadata: {
                 name: "viewers",
                 namespace: "default",
@@ -217,7 +218,7 @@ export class Kubernetes extends pulumi.ComponentResource {
             data: {
                 "mapRoles": JSON.stringify([
                     {
-                        "rolearn": pulumi.interpolate`arn:aws:iam::${aws.getCallerIdentity().then(current => current.accountId)}:role/eks-node-group-role`,
+                        "rolearn": pulumi.interpolate`arn:aws:iam::${aws.getCallerIdentity({ provider: awsProvider }).then(current => current.accountId)}:role/eks-node-group-role`,
                         "username": "system:node:{{EC2PrivateDNSName}}",
                         "groups": [
                             "system:bootstrappers",

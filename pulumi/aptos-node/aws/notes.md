@@ -15,3 +15,4 @@ import * as aws from "@pulumi/aws";
 import * as k8s from "@pulumi/kubernetes";
 ```
 
+cat terraform.tfstate | jq 'del(.resources[] | select(.type == "helm_release" or .type == "kubernetes_labels" or .type == "time_sleep" or .name == "ssd" or .type == "aws_security_group_rule" or .name == "delete-gp2" or .name == "delete-psp-authenticated"))' > terraform.modified.tfstate

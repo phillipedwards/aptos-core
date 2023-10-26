@@ -1,0 +1,23 @@
+config:
+  aptos:enableCalico: "false"
+  aptos:enableKubeStateMetrics: "true"
+  aptos:enableLogger: "true"
+  aptos:enableMonitoring: "true"
+  aptos:enablePrometheusNodeExporter: "true"
+  aptos:helmChart: "../../../../../terraform/helm/aptos"
+  aptos:k8sApiSources: ["0.0.0.0/0"]
+  aptos:utilityInstanceEnableTaint: "true"
+  aptos:validatorInstanceEnableTaint: "true"
+  aptos:validatorName: "gmvalidator"
+  aptos:workspaceNameOverride: "default"
+  aptos:zoneId: "Z06658773W0CXPGF3EK8K"
+  aptos:azs:
+    - "us-west-2a"
+    - "us-west-2b"
+    - "us-west-2c"
+    # - "usw2-az2"
+    # - "usw2-az1"
+    # - "usw2-az3"
+  aws:profile: "ce_admin"
+  aws:region: "us-west-2"
+  aws:defaultTags: '{ "Pulumi": "validator"}'

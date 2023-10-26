@@ -16,8 +16,8 @@ locals {
   kubeconfig = "/tmp/kube.config.${md5(timestamp())}"
 
   # helm chart paths
-  monitoring_helm_chart_path = "${path.module}/../../helm/monitoring"
-  logger_helm_chart_path     = "${path.module}/../../helm/logger"
+  monitoring_helm_chart_path = "${path.module}/../../../../terraform/helm/monitoring"
+  logger_helm_chart_path     = "${path.module}/../../../../terraform/helm/logger"
   aptos_node_helm_chart_path = var.helm_chart != "" ? var.helm_chart : "${path.module}/../../helm/aptos-node"
 }
 

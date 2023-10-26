@@ -1,2 +1,16 @@
 /bin/
+out/
 /node_modules/
+src/bin/
+src/node_modules/
+
+terraform.tfstate
+terraform.tfstate.*
+*.terraform.tfstate
+terraform.*.tfstate
+terraform.*.tfstate.*
+*.terraform.*.tfstate.*
+*.terraform.*.tfstate
+
+pulumi-import*.json
+state.json

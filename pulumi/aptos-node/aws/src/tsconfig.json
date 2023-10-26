@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"esModuleInterop": true,
 		"strict": true,
 		"outDir": "bin",
 		"target": "es2016",
@@ -11,8 +12,15 @@
 		"noFallthroughCasesInSwitch": true,
 		"noImplicitReturns": true,
 		"forceConsistentCasingInFileNames": true,
-		"typeRoots": ["./node_modules/@types", "./types"]
+		"typeRoots": [
+			"./node_modules/@types",
+			"./types",
+			"./types/ip6.d.ts",
+		]
 	},
+	"include": [
+		"./types/ip6.d.ts",
+	],
 	"files": [
 		"index.ts",
 	]

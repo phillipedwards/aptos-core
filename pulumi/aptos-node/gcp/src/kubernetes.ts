@@ -10,7 +10,7 @@ import { helmConfig } from './config';
 export interface KubernetesConfig {
     aptosNodeHelmChartPath: pulumi.Input<string>
     chainId: pulumi.Input<string>
-    chainName: pulumi.Input<string>
+    chainName: string
     cluster: gcp.container.Cluster;
     enableLogger: pulumi.Input<boolean>
     enableMonitoring: pulumi.Input<boolean>
