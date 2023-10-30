@@ -1,15 +1,47 @@
+import * as yaml from "yaml";
 import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
 import * as aws from "@pulumi/aws";
 import * as k8sClientLib from '@kubernetes/client-node';
 import { awsProvider } from './aws'
 
-interface KubernetesConfig {
+export interface KubernetesConfig {
+    aptosNodeHelmChartPath?: pulumi.Input<string>;
+    chainId: pulumi.Input<string>;
+    chainName: pulumi.Input<string>;
+    enableCalico?: pulumi.Input<boolean>;
+    enableKubeStateMetrics?: pulumi.Input<boolean>;
+    enableLogger?: pulumi.Input<boolean>;
+    enableMonitoring?: pulumi.Input<boolean>;
+    enablePrometheusNodeExporter?: pulumi.Input<boolean>;
+    enableValidator?: pulumi.Input<boolean>;
+    era: pulumi.Input<number>;
+    fullNodeStorageClass?: pulumi.Input<string>;
+    iamPath: pulumi.Input<string>;
+    imageTag: pulumi.Input<string>;
+    k8sAdminRoles: pulumi.Input<string>[];
+    k8sAdmins: pulumi.Input<string>[];
+    k8sDebuggerRoles?: pulumi.Input<string>[];
+    k8sDebuggers?: pulumi.Input<string>[];
+    k8sViewerRoles?: pulumi.Input<string>[];
+    k8sViewers?: pulumi.Input<string>[];
+    loggerHelmChartPath?: pulumi.Input<string>;
+    manageViaPulumi: pulumi.Input<boolean>;
+    monitoringHelmChartPath?: pulumi.Input<string>;
+    numFullnodeGroups: pulumi.Input<number>;
+    numValidators: pulumi.Input<number>;
+    tags?: pulumi.Input<aws.Tags>;
+    validatorName: pulumi.Input<string>;
+    validatorStorageClass?: pulumi.Input<string>;
+}
+
+export interface KubernetesArgs extends KubernetesConfig {
+    domain: pulumi.Input<string>;
+    helmReleaseName: pulumi.Input<string>;
+    nodesIamRoleArn: pulumi.Input<string>;
     eksCluster: aws.eks.Cluster;
     vpcId: pulumi.Input<string>;
     subnetIds: pulumi.Input<string>[];
-    tags?: pulumi.Input<aws.Tags>;
-
 }
 
 /**
@@ -21,18 +53,37 @@ export class Kubernetes extends pulumi.ComponentResource {
     public readonly gp3StorageClass: k8s.storage.v1.StorageClass;
     public readonly io1StorageClass: k8s.storage.v1.StorageClass;
     public readonly io2StorageClass: k8s.storage.v1.StorageClass;
-    public readonly tigeraOperatorNamespace: k8s.core.v1.Namespace;
-    public readonly calicoHelmRelease: k8s.helm.v3.Release;
-    public readonly validatorHelmRelease: k8s.helm.v3.Release;
-    public readonly loggerHelmRelease: k8s.helm.v3.Release;
-    public readonly monitoringHelmRelease: k8s.helm.v3.Release;
+    public readonly calicoHelmRelease?: k8s.helm.v3.Release;
+    public readonly validatorHelmRelease?: k8s.helm.v3.Release;
+    public readonly loggerHelmRelease?: k8s.helm.v3.Release;
+    public readonly monitoringHelmRelease?: k8s.helm.v3.Release;
     public readonly debugClusterRole: k8s.rbac.v1.ClusterRole;
     public readonly debuggersRoleBinding: k8s.rbac.v1.RoleBinding;
     public readonly viewersRoleBinding: k8s.rbac.v1.RoleBinding;
     public readonly awsAuthConfigMap: k8s.core.v1.ConfigMap;
+    public readonly provider: k8s.Provider;
 
-    constructor(name: string, args: KubernetesConfig, opts?: pulumi.ComponentResourceOptions) {
+    constructor(name: string, args: KubernetesArgs, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:Kubernetes", name, {}, opts);
+
+        const accountId = aws.getCallerIdentity({ provider: awsProvider }).then(it => it.accountId);
+
+        // SET DEFAULTS
+        if (!args.aptosNodeHelmChartPath) { args.aptosNodeHelmChartPath = "" }
+        if (!args.fullNodeStorageClass) { args.fullNodeStorageClass = "io1" }
+        if (!args.validatorStorageClass) { args.validatorStorageClass = "io1" }
+        if (!args.k8sDebuggerRoles) { args.k8sDebuggerRoles = [] }
+        if (!args.k8sDebuggers) { args.k8sDebuggers = [] }
+        if (!args.k8sViewerRoles) { args.k8sViewerRoles = [] }
+        if (!args.k8sViewers) { args.k8sViewers = [] }
+        if (!args.loggerHelmChartPath) { args.loggerHelmChartPath = "" }
+        if (!args.monitoringHelmChartPath) { args.monitoringHelmChartPath = "" }
+        if (!args.enableCalico) { args.enableCalico = false }
+        if (!args.enableLogger) { args.enableLogger = false }
+        if (!args.enableMonitoring) { args.enableMonitoring = false }
+        if (!args.enablePrometheusNodeExporter) { args.enablePrometheusNodeExporter = false }
+        if (!args.enableValidator) { args.enableValidator = false }
+        if (!args.tags) { args.tags = {} }
 
         const kubeconfig = new k8sClientLib.KubeConfig();
         kubeconfig.loadFromOptions({
@@ -61,11 +112,13 @@ export class Kubernetes extends pulumi.ComponentResource {
             ],
         })
 
-        const provider = new k8s.Provider(`k8s`, {
+        this.provider = new k8s.Provider(`k8s`, {
             kubeconfig: kubeconfig.exportConfig(),
         }, { parent: this });
 
-        const gp3StorageClass = new k8s.storage.v1.StorageClass(`${name}-gp3-storage-class`, {
+        const provider = this.provider;
+
+        this.gp3StorageClass = new k8s.storage.v1.StorageClass(`gp3`, {
             metadata: {
                 name: "gp3",
             },
@@ -76,7 +129,7 @@ export class Kubernetes extends pulumi.ComponentResource {
             reclaimPolicy: "Delete",
         }, { provider, parent: this });
 
-        const io1StorageClass = new k8s.storage.v1.StorageClass(`${name}-io1-storage-class`, {
+        this.io1StorageClass = new k8s.storage.v1.StorageClass(`io1`, {
             metadata: {
                 name: "io1",
             },
@@ -87,7 +140,7 @@ export class Kubernetes extends pulumi.ComponentResource {
             reclaimPolicy: "Delete",
         }, { provider, parent: this });
 
-        const io2StorageClass = new k8s.storage.v1.StorageClass(`${name}-io2-storage-class`, {
+        this.io2StorageClass = new k8s.storage.v1.StorageClass(`io2`, {
             metadata: {
                 name: "io2",
             },
@@ -98,104 +151,170 @@ export class Kubernetes extends pulumi.ComponentResource {
             reclaimPolicy: "Delete",
         }, { provider, parent: this });
 
-        const tigeraOperatorNamespace = new k8s.core.v1.Namespace(`${name}-tigera-operator-namespace`, {
+        const tigeraNamespace = new k8s.core.v1.Namespace(`tigera`, {
             metadata: {
                 name: "tigera-operator",
             },
         }, { provider, parent: this });
 
-        const calicoHelmRelease = new k8s.helm.v3.Release(`${name}-calico-helm-release`, {
-            chart: "calico/tigera-operator",
-            version: "v1.20.1",
-            namespace: tigeraOperatorNamespace.metadata.name,
-            values: {
-                "manager": {
-                    "image": {
-                        "repository": "quay.io/tigera/operator",
-                        "tag": "v1.20.1",
+        if (args.enableCalico) {
+            this.calicoHelmRelease = new k8s.helm.v3.Release(`calico`, {
+                repositoryOpts: {
+                    repo: "https://docs.tigera.io/calico/charts",
+                },
+                chart: "tigera-operator",
+                name: "calico",
+                version: "3.26.0",
+                namespace: tigeraNamespace.metadata.name,
+            }, { provider, parent: this });
+        }
+
+        let loggerRemoteAddress = {}
+
+        if (args.enableLogger) {
+            this.loggerHelmRelease = new k8s.helm.v3.Release(`logger`, {
+                chart: args.loggerHelmChartPath,
+                maxHistory: 5,
+                waitForJobs: false,
+                values: {
+                    logger: {
+                        name: "aptos-logger",
+                    },
+                    chain: {
+                        name: args.chainName,
+                    },
+                    serviceAccount: {
+                        create: false,
+                        name: args.helmReleaseName === "aptos-node" ? "aptos-node-validator" : pulumi.interpolate`${args.helmReleaseName}-aptos-node-validator`,
                     },
                 },
-            },
-        }, { provider, parent: this });
+            }, { provider, parent: this });
+            loggerRemoteAddress = {
+                remoteLogAddress: args.enableLogger ? pulumi.interpolate`${this.loggerHelmRelease.name}-aptos-logger.${this.loggerHelmRelease.namespace}.svc:5044` : undefined,
+            }
+        }
 
-        const validatorHelmRelease = new k8s.helm.v3.Release(`${name}-validator-helm-release`, {
-            chart: "tigera/validator",
-            version: "v3.16.0",
-            namespace: tigeraOperatorNamespace.metadata.name,
-            values: {
-                "image": {
-                    "repository": "quay.io/tigera/validator",
-                    "tag": "v3.16.0",
-                },
-            },
-        }, { provider, parent: this });
-
-        const loggerHelmRelease = new k8s.helm.v3.Release(`${name}-logger-helm-release`, {
-            chart: "tigera/fluentd-elasticsearch",
-            version: "v2.14.0",
-            namespace: tigeraOperatorNamespace.metadata.name,
-            values: {
-                "image": {
-                    "repository": "quay.io/tigera/fluentd-elasticsearch",
-                    "tag": "v2.14.0",
-                },
-            },
-        }, { provider, parent: this });
-
-        const monitoringHelmRelease = new k8s.helm.v3.Release(`${name}-monitoring-helm-release`, {
-            chart: "tigera/prometheus",
-            version: "v2.25.0",
-            namespace: tigeraOperatorNamespace.metadata.name,
-            values: {
-                "prometheus": {
-                    "image": {
-                        "repository": "quay.io/prometheus/prometheus",
-                        "tag": "v2.25.0",
+        if (args.enableValidator) {
+            this.validatorHelmRelease = new k8s.helm.v3.Release(`validator`, {
+                chart: args.helmReleaseName,
+                version: args.aptosNodeHelmChartPath,
+                waitForJobs: false,
+                maxHistory: 5,
+                values: {
+                    numValidators: args.numValidators,
+                    numFullnodeGroups: args.numFullnodeGroups,
+                    imageTag: args.imageTag,
+                    manageImages: args.manageViaPulumi,
+                    chain: {
+                        era: args.era,
+                        chain_id: args.chainId,
+                        name: args.chainName,
+                    },
+                    validator: {
+                        name: args.validatorName,
+                        storage: {
+                            class: args.validatorStorageClass,
+                        },
+                        nodeSelector: {
+                            "eks.amazonaws.com/nodegroup": "validators",
+                        },
+                        tolerations: [{
+                            key: "aptos.org/nodepool",
+                            value: "validators",
+                            effect: "NoExecute",
+                        }],
+                        ...loggerRemoteAddress,
+                    },
+                    fullnode: {
+                        storage: {
+                            class: args.fullNodeStorageClass,
+                        },
+                        nodeSelector: {
+                            "eks.amazonaws.com/nodegroup": "validators",
+                        },
+                        tolerations: [{
+                            key: "aptos.org/nodepool",
+                            value: "validators",
+                            effect: "NoExecute",
+                        }]
+                    },
+                    haproxy: {
+                        nodeSelector: {
+                            "eks.amazonaws.com/nodegroup": "utilities",
+                        }
+                    },
+                    service: {
+                        domain: args.domain,
                     },
                 },
-            },
-        }, { provider, parent: this });
+            }, { provider, parent: this });
+        }
+        if (args.enableMonitoring) {
+            this.monitoringHelmRelease = new k8s.helm.v3.Release(`monitoring`, {
+                name: pulumi.interpolate`${args.helmReleaseName}-mon`,
+                chart: args.monitoringHelmChartPath,
+                maxHistory: 5,
+                waitForJobs: false,
+                values: {
+                    chain: {
+                        name: args.chainName,
+                    },
+                    validator: {
+                        name: args.validatorName,
+                    },
+                    service: {
+                        domain: args.domain,
+                    },
+                    monitoring: {
+                        prometheus: {
+                            storage: {
+                                class: this.gp3StorageClass.metadata.name
+                            }
+                        }
+                    },
+                    "kube-state-metrics": {
+                        enabled: args.enableKubeStateMetrics,
+                    },
+                    "prometheus-node-exporter": {
+                        enabled: args.enablePrometheusNodeExporter,
+                    },
+                },
+            }, { provider, parent: this });
 
-        const debugClusterRole = new k8s.rbac.v1.ClusterRole(`${name}-debug-cluster-role`, {
+        }
+        this.debugClusterRole = new k8s.rbac.v1.ClusterRole(`debug`, {
             metadata: {
                 name: "debug",
             },
             rules: [
                 {
                     apiGroups: [""],
-                    resources: ["pods"],
-                    verbs: ["get", "list", "watch"],
-                },
-                {
-                    apiGroups: [""],
-                    resources: ["pods/log"],
-                    verbs: ["get", "list", "watch"],
+                    resources: ["pods/portforward", "pods/exec"],
+                    verbs: ["create"],
                 },
             ],
         }, { provider, parent: this });
 
-        const debuggersRoleBinding = new k8s.rbac.v1.RoleBinding(`debuggers`, {
+        this.debuggersRoleBinding = new k8s.rbac.v1.RoleBinding(`debuggers`, {
             metadata: {
                 name: "debuggers",
-                namespace: "default",
             },
             roleRef: {
                 apiGroup: "rbac.authorization.k8s.io",
                 kind: "ClusterRole",
-                name: debugClusterRole.metadata.name,
+                name: this.debugClusterRole.metadata.name,
             },
             subjects: [
                 {
                     kind: "Group",
-                    name: "system:masters",
+                    name: "debuggers",
                 },
             ],
         }, { provider, parent: this });
 
-        const viewersRoleBinding = new k8s.rbac.v1.RoleBinding(`viewers`, {
+        this.viewersRoleBinding = new k8s.rbac.v1.RoleBinding(`viewers`, {
             metadata: {
                 name: "viewers",
-                namespace: "default",
             },
             roleRef: {
                 apiGroup: "rbac.authorization.k8s.io",
@@ -205,41 +324,75 @@ export class Kubernetes extends pulumi.ComponentResource {
             subjects: [
                 {
                     kind: "Group",
-                    name: "system:authenticated",
+                    name: "viewers",
+                },
+                {
+                    kind: "Group",
+                    name: "debuggers",
                 },
             ],
         }, { provider, parent: this });
 
-        const awsAuthConfigMap = new k8s.core.v1.ConfigMap(`${name}-aws-auth-config-map`, {
+        let mapRolesList = []
+        let mapUsersList = []
+
+        for (const role of args.k8sAdminRoles) {
+            mapRolesList.push({
+                rolearn: pulumi.interpolate`arn:aws:iam::${accountId}:role/${role}`,
+                username: pulumi.interpolate`${role}:{{SessionName}}`,
+                groups: `["system:masters"]`,
+            })
+        }
+
+        for (const role of args.k8sViewerRoles) {
+            mapRolesList.push({
+                rolearn: pulumi.interpolate`arn:aws:iam::${accountId}:role/${role}`,
+                username: pulumi.interpolate`${role}:{{SessionName}}`,
+                groups: `["viewers"]`,
+            })
+        }
+
+        for (const role of args.k8sDebuggerRoles) {
+            mapRolesList.push({
+                rolearn: pulumi.interpolate`arn:aws:iam::${accountId}:role/${role}`,
+                username: pulumi.interpolate`${role}:{{SessionName}}`,
+                groups: `["debuggers"]`,
+            })
+        }
+
+        for (const user of args.k8sAdmins) {
+            mapUsersList.push({
+                userarn: pulumi.interpolate`arn:aws:iam::${accountId}:user/${user}`,
+                username: user,
+                groups: `["system:masters"]`,
+            })
+        }
+
+        for (const user of args.k8sViewers) {
+            mapUsersList.push({
+                userarn: pulumi.interpolate`arn:aws:iam::${accountId}:user/${user}`,
+                username: user,
+                groups: `["viewers"]`,
+            })
+        }
+
+        for (const user of args.k8sDebuggers) {
+            mapUsersList.push({
+                userarn: pulumi.interpolate`arn:aws:iam::${accountId}:user/${user}`,
+                username: user,
+                groups: `["debuggers"]`,
+            })
+        }
+
+        this.awsAuthConfigMap = new k8s.core.v1.ConfigMap(`aws-auth`, {
             metadata: {
                 name: "aws-auth",
                 namespace: "kube-system",
             },
             data: {
-                "mapRoles": JSON.stringify([
-                    {
-                        "rolearn": pulumi.interpolate`arn:aws:iam::${aws.getCallerIdentity({ provider: awsProvider }).then(current => current.accountId)}:role/eks-node-group-role`,
-                        "username": "system:node:{{EC2PrivateDNSName}}",
-                        "groups": [
-                            "system:bootstrappers",
-                            "system:nodes",
-                        ],
-                    },
-                ]),
+                mapUsers: yaml.stringify(mapUsersList),
+                mapRoles: yaml.stringify(mapRolesList),
             },
         }, { provider, parent: this });
-
-        this.gp3StorageClass = gp3StorageClass;
-        this.io1StorageClass = io1StorageClass;
-        this.io2StorageClass = io2StorageClass;
-        this.tigeraOperatorNamespace = tigeraOperatorNamespace;
-        this.calicoHelmRelease = calicoHelmRelease;
-        this.validatorHelmRelease = validatorHelmRelease;
-        this.loggerHelmRelease = loggerHelmRelease;
-        this.monitoringHelmRelease = monitoringHelmRelease;
-        this.debugClusterRole = debugClusterRole;
-        this.debuggersRoleBinding = debuggersRoleBinding;
-        this.viewersRoleBinding = viewersRoleBinding;
-        this.awsAuthConfigMap = awsAuthConfigMap;
     }
 }

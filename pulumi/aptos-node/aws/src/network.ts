@@ -5,6 +5,9 @@ export interface NetworkConfig {
     vpcCidrBlock: string;
     azs: pulumi.Input<string>[];
     maximizeSingleAzCapacity: pulumi.Input<boolean>;
+}
+
+export interface NetworkArgs extends NetworkConfig {
     workspaceName: pulumi.Input<string>;
 }
 
@@ -21,7 +24,7 @@ export class Network extends pulumi.ComponentResource {
     public readonly nodesSecurityGroup: aws.ec2.SecurityGroup;
     public readonly nodesEgressSecurityGroupRule: aws.ec2.SecurityGroupRule;
 
-    constructor(name: string, config: NetworkConfig, opts?: pulumi.ComponentResourceOptions) {
+    constructor(name: string, config: NetworkArgs, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:Network", name, {}, opts);
 
         const cidr = "192.168.0.0/16"

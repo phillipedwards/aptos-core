@@ -2,9 +2,12 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 
 export interface AuthConfig {
-    workspaceName: pulumi.Input<string>;
     iamPath: pulumi.Input<string>;
     permissionsBoundaryPolicy?: pulumi.Input<string>;
+}
+
+export interface AuthArgs extends AuthConfig {
+    workspaceName: pulumi.Input<string>;
 }
 
 export class Auth extends pulumi.ComponentResource {
@@ -12,7 +15,7 @@ export class Auth extends pulumi.ComponentResource {
     public readonly nodesRole: aws.iam.Role;
     public readonly nodesInstanceProfile: aws.iam.InstanceProfile;
 
-    constructor(name: string, args: AuthConfig, opts?: pulumi.ComponentResourceOptions) {
+    constructor(name: string, args: AuthArgs, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:Auth", name, {}, opts);
 
         this.clusterRole = new aws.iam.Role(`cluster`, {

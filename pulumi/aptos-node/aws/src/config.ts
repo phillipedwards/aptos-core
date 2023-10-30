@@ -3,14 +3,12 @@ import * as command from "@pulumi/command";
 
 // AWS Config
 export const awsConfig = new pulumi.Config("aws");
-export const region = awsConfig.require("region") as pulumi.Input<string>;
-export const profile = awsConfig.require("profile") as pulumi.Input<string>;
+export const region: pulumi.Input<string> = awsConfig.require("region");
+export const profile: pulumi.Input<string> = awsConfig.require("profile");
 
 // General Configurations
 export const config = new pulumi.Config("aptos");
 export const workspaceNameOverride = config.get("workspaceNameOverride") || "" as pulumi.Input<string>;
-export const workspaceName = workspaceNameOverride || pulumi.getStack();
-
 
 // AWS Configurations
 export const numAzs = config.getNumber("numAzs") || 3 as pulumi.Input<number>;
@@ -29,28 +27,27 @@ export const imageTag = config.get("imageTag") || "devnet" as pulumi.Input<strin
 // DNS Configurations
 export const zoneId = config.require("zoneId") as pulumi.Input<string>;
 export const workspaceDns = config.getBoolean("workspaceDns") || true as pulumi.Input<boolean>;
-const recordNameTmp = config.get("recordName") || "<workspace>.aptos" as string;
-export const recordName = pulumi.all([workspaceName, recordNameTmp]).apply(([workspaceName, recordNameTmp]) => {
-    if (recordNameTmp.includes("<workspace>")) {
-        return recordNameTmp.replace("<workspace>", workspaceName);
-    } else {
-        return recordNameTmp;
-    }
-});
+export const recordNamePattern = config.get("recordName") || "<workspace>.aptos" as string;
+
 export const createRecords = config.getBoolean("createRecords") || true as pulumi.Input<boolean>;
 
 // Helm Configurations
 export const helmChart = config.get("helmChart") || "" as pulumi.Input<string>;
 export const helmValues = config.getObject("helmValues") || {} as any;
 export const helmValuesFile = config.get("helmValuesFile") || "" as pulumi.Input<string>;
+export const aptosNodeHelmChartPath = config.get("aptosNodeHelmChartPath") || "../../helm/aptos-node" as pulumi.Input<string>;
+export const loggerHelmChartPath = config.get("loggerHelmChartPath") || "../../../../terraform/helm/logger" as pulumi.Input<string>;
+export const monitoringHelmChartPath = config.get("monitoringHelmChartPath") || "../../../../terraform/helm/monitoring" as pulumi.Input<string>;
+export const enableValidator = config.getBoolean("enableValidator") || false as pulumi.Input<boolean>;
+export const helmReleaseNameOverride = config.get("helmReleaseNameOverride") || "" as pulumi.Input<string>;
 
 // Kubernetes User Configurations
-export const k8sAdmins = config.getObject<Array<string>>("k8sAdmins") || [] as pulumi.Input<Array<string>>;
-export const k8sAdminRoles = config.getObject<Array<string>>("k8sAdminRoles") || [] as pulumi.Input<Array<string>>;
-export const k8sViewers = config.getObject<Array<string>>("k8sViewers") || [] as pulumi.Input<Array<string>>;
-export const k8sViewerRoles = config.getObject<Array<string>>("k8sViewerRoles") || [] as pulumi.Input<Array<string>>;
-export const k8sDebuggers = config.getObject<Array<string>>("k8sDebuggers") || [] as pulumi.Input<Array<string>>;
-export const k8sDebuggerRoles = config.getObject<Array<string>>("k8sDebuggerRoles") || [] as pulumi.Input<Array<string>>;
+export const k8sAdmins = config.getObject<Array<string>>("k8sAdmins") as pulumi.Input<string>[] || [] as pulumi.Input<Array<string>>;
+export const k8sAdminRoles = config.getObject<Array<string>>("k8sAdminRoles") as pulumi.Input<string>[] || [] as pulumi.Input<Array<string>>;
+export const k8sViewers = config.getObject<Array<string>>("k8sViewers") as pulumi.Input<string>[] || [] as pulumi.Input<Array<string>>;
+export const k8sViewerRoles = config.getObject<Array<string>>("k8sViewerRoles") as pulumi.Input<string>[] || [] as pulumi.Input<Array<string>>;
+export const k8sDebuggers = config.getObject<Array<string>>("k8sDebuggers") as pulumi.Input<string>[] || [] as pulumi.Input<Array<string>>;
+export const k8sDebuggerRoles = config.getObject<Array<string>>("k8sDebuggerRoles") as pulumi.Input<string>[] || [] as pulumi.Input<Array<string>>;
 
 // IAM Configurations
 export const iamPath = config.get("iamPath") || "/" as pulumi.Input<string>;
@@ -85,7 +82,6 @@ export const enablePrometheusNodeExporter = config.getBoolean("enablePrometheusN
 export const enableKubeStateMetrics = config.getBoolean("enableKubeStateMetrics") || false as pulumi.Input<boolean>;
 
 // Miscellaneous Configurations
-export const helmReleaseNameOverride = config.get("helmReleaseNameOverride") || "" as pulumi.Input<string>;
 export const validatorStorageClass = config.get("validatorStorageClass") || "io1" as pulumi.Input<string>;
 export const fullnodeStorageClass = config.get("fullnodeStorageClass") || "io1" as pulumi.Input<string>;
 export const manageViaPulumi = config.getBoolean("manageViaPulumi") || true as pulumi.Input<boolean>;

@@ -1,18 +1,27 @@
 import * as aws from '@pulumi/aws';
+import * as k8s from '@pulumi/kubernetes';
 import * as pulumi from '@pulumi/pulumi';
-import { Auth } from "./auth";
-import { Cluster } from "./cluster";
+import { Auth, AuthConfig } from "./auth";
+import { Cluster, NodePoolConfig, ClusterConfig } from "./cluster";
 import * as config from "./config";
-import { DNS } from "./dns";
-import { Kubernetes } from "./kubernetes";
-import { Network } from "./network";
-// import { Security } from "./security";
+import { DNS, DNSConfig } from "./dns";
+import { Kubernetes, KubernetesConfig } from "./kubernetes";
+import { Network, NetworkConfig } from "./network";
+// import { Security, SecurityConfig } from "./security";
 
-/**
- * Represents an AWS component resource for Aptos Node.
- * @class
- * @extends pulumi.ComponentResource
- */
+export interface AptosNodeAWSArgs {
+    clusterConfig: ClusterConfig;
+    dnsConfig: DNSConfig;
+    networkConfig: NetworkConfig;
+    authConfig: AuthConfig;
+    kubernetesConfig: KubernetesConfig;
+    // securityConfig: SecurityConfig;
+    workspaceNameOverride?: pulumi.Input<string>;
+    recordName?: pulumi.Input<string>;
+    helmReleaseNameOverride?: pulumi.Input<string>;
+    region: pulumi.Input<string>;
+}
+
 export class AptosNodeAWS extends pulumi.ComponentResource {
 
     public readonly awsEipNatPublicIp: pulumi.Output<string> | undefined;
@@ -28,77 +37,91 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
     // public readonly oidcProvider: pulumi.Output<string>;
     public readonly validatorEndpoint: pulumi.Output<string> | undefined;
     public readonly vpcId: pulumi.Output<string>;
+    public readonly awsProvider: aws.Provider;
+    public readonly k8sProvider: k8s.Provider;
+    public readonly openidConnectProvider: aws.iam.OpenIdConnectProvider;
 
 
-    constructor(name: string, opts?: pulumi.ComponentResourceOptions) {
+    constructor(name: string, args: AptosNodeAWSArgs, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:AptosNodeAWS", name, opts);
+
+        const workspaceName = (args.workspaceNameOverride !== "" && args.workspaceNameOverride) ? args.workspaceNameOverride : pulumi.getStack();
+        const domain = pulumi.all([workspaceName, args.recordName]).apply(([workspaceName, record]) => {
+            if (record === undefined || record === "") {
+                return "";
+            } else if (record.includes("<workspace>")) {
+                return record.replace("<workspace>", workspaceName);
+            } else {
+                return record;
+            }
+        });
+        const helmReleaseName = (args.helmReleaseNameOverride !== "" && args.helmReleaseNameOverride) ? args.helmReleaseNameOverride : workspaceName;
 
         const options = {
             parent: this
         };
 
+        const profile = config.profile || process.env.AWS_PROFILE;
+
+        this.awsProvider = new aws.Provider("aws", {
+            // TODO: fix region
+            region: "us-west-2",
+            accessKey: process.env.AWS_ACCESS_KEY_ID ? process.env.AWS_ACCESS_KEY_ID : undefined,
+            secretKey: process.env.AWS_SECRET_ACCESS_KEY ? process.env.AWS_SECRET_ACCESS_KEY : undefined,
+            profile: process.env.AWS_PROFILE ? process.env.AWS_PROFILE : undefined,
+            defaultTags: {
+                tags: {
+                    "pulumi": "validator",
+                    "pulumi/organziation": pulumi.getOrganization(),
+                    "pulumi/project": pulumi.getProject(),
+                    "pulumi/stack": pulumi.getStack(),
+                    "kubernetes.io/cluster/aptos-default": "owned",
+                }
+            }
+        }, { aliases: ["urn:pulumi:sandbox::aws::pulumi:providers:aws::default_5_42_0"] });
+
         const network = new Network("network", {
-            azs: config.azs,
-            maximizeSingleAzCapacity: config.maximizeSingleAzCapacity,
-            vpcCidrBlock: config.vpcCidrBlock,
-            workspaceName: config.workspaceName,
+            ...args.networkConfig,
+            workspaceName: workspaceName,
         }, options);
 
         const auth = new Auth("auth", {
-            iamPath: config.iamPath,
-            permissionsBoundaryPolicy: config.permissionsBoundaryPolicy,
-            workspaceName: config.workspaceName,
+            ...args.authConfig,
+            workspaceName: workspaceName,
         }, options);
 
         const cluster = new Cluster("validator", {
-            clusterName: `aptos-${config.workspaceName}`,
-            // tags: {},
+            ...args.clusterConfig,
             clusterRoleArn: auth.clusterRole.arn,
-            workspaceName: config.workspaceName,
             nodeRoleArn: auth.nodesRole.arn,
-            instanceType: config.utilityInstanceType,
-            kubernetesVersion: config.kubernetesVersion,
             privateSubnetIds: network.privateSubnets.map(subnet => subnet.id),
             publicSubnetIds: network.publicSubnets.map(subnet => subnet.id),
-            securityGroupIdNodes: network.nodesSecurityGroup.id,
-            securityGroupIdCluster: network.clusterSecurityGroup.id,
-            k8sApiSources: config.k8sApiSources,
-            utilitiesNodePool: {
-                instance_type: config.utilityInstanceType,
-                instance_enable_taint: config.utilityInstanceEnableTaint,
-                instance_max_num: config.utilityInstanceMaxNum,
-                instance_min_num: config.utilityInstanceMinNum,
-                instance_num: config.utilityInstanceNum,
-            },
-            validatorsNodePool: {
-                instance_type: config.validatorInstanceType,
-                instance_enable_taint: config.validatorInstanceEnableTaint,
-                instance_max_num: config.validatorInstanceMaxNum,
-                instance_min_num: config.validatorInstanceMinNum,
-                instance_num: config.validatorInstanceNum,
-            },
-            // TODO: Tagging
+            securityGroupIdCluster: network.nodesSecurityGroup.id,
+            securityGroupIdNodes: network.clusterSecurityGroup.id,
+            workspaceName: workspaceName,
         }, options);
 
         const kubernetes = new Kubernetes("validator", {
+            ...args.kubernetesConfig,
+            domain: domain,
+            helmReleaseName: helmReleaseName,
+            nodesIamRoleArn: auth.nodesRole.arn,
             eksCluster: cluster.eksCluster,
             vpcId: network.vpc.id,
             subnetIds: network.privateSubnets.map(subnet => subnet.id),
-            // TODO: Tagging
-            // tags: {
-            //     "kubernetes.io/cluster/": "true",
-            // },
         }, options);
+
+        this.k8sProvider = kubernetes.provider;
 
         // const security = new Security("validator", {
         //     vpcId: network.vpc.id,
         //     ingressRules: [], // Define your ingress rules here
         // }, options);
 
-        if (config.recordName && pulumi.interpolate`${config.recordName}` !== pulumi.interpolate``) {
+        if (domain && pulumi.interpolate`${domain}` !== pulumi.interpolate``) {
             const dns = new DNS("validator", {
-                domainName: config.recordName,
-                hostedZoneId: config.zoneId,
+                ...args.dnsConfig,
+                domainName: domain,
                 lbDnsName: cluster.eksCluster.endpoint,
             }, options);
 
@@ -106,6 +129,7 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
             this.fullnodeEndpoint = dns.fullnodeRecord.fqdn;
         }
 
+        this.openidConnectProvider = cluster.openidConnectProvider;
         this.awsEipNatPublicIp = network.natEip ? network.natEip.address.apply(address => address || "") : undefined;
         this.awsEksCluster = cluster.eksCluster;
         this.awsEksClusterAuthToken = cluster.eksCluster.certificateAuthorities?.apply(ca => ca[0].data);
@@ -113,7 +137,7 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
         this.awsSubnetPublic = network.publicSubnets;
         this.awsVpcCidrBlock = network.vpc.cidrBlock;
         this.clusterSecurityGroupId = network.clusterSecurityGroup.id;
-        this.helmReleaseName = kubernetes.calicoHelmRelease.name;
+        this.helmReleaseName = kubernetes.calicoHelmRelease ? kubernetes.calicoHelmRelease.name : pulumi.interpolate``;
         // this.kubeConfig = cluster.kubeConfig;
         // this.oidcProvider = auth.oidcProvider;
         this.vpcId = network.vpc.id;

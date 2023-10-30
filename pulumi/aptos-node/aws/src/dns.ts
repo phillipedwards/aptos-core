@@ -4,17 +4,23 @@ import * as aws from "@pulumi/aws";
 import * as command from "@pulumi/command";
 
 export interface DNSConfig {
-    domainName: pulumi.Input<string>;
     hostedZoneId: pulumi.Input<string>;
+}
+
+export interface DNSArgs extends DNSConfig {
+    domainName: pulumi.Input<string>;
     lbDnsName: pulumi.Input<string>;
 }
 
 export class DNS extends pulumi.ComponentResource {
     public readonly validatorRecord: aws.route53.Record;
     public readonly fullnodeRecord: aws.route53.Record;
+    public readonly domain: pulumi.Input<string> | undefined;
 
-    constructor(name: string, args: DNSConfig, opts?: pulumi.ComponentResourceOptions) {
+    constructor(name: string, args: DNSArgs, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:DNS", name, {}, opts);
+
+        this.domain = args.domainName;
 
         // create a pulumi/command local command resource that calls sleep for 2 minutes
         // this is a hack to wait for the load balancer to be ready for DNS registration

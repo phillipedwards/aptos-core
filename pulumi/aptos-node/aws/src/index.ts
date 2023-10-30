@@ -2,7 +2,7 @@ import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import { AptosNodeAWS } from "./aptosNodeAWS";
 import * as transformations from './transformation';
-import { awsProvider } from './aws'
+import * as config from "./config";
 
 // Register the alias transformation on the stack to import from `pulumi import from...`
 pulumi.log.info(`Registering aliasTransformation transformation`);
@@ -16,7 +16,104 @@ pulumi.runtime.registerStackTransformation(transformations.addImports);
 pulumi.log.info(`Registering setAWSProviderOnEachAWSResource transformation`);
 pulumi.runtime.registerStackTransformation(transformations.setAWSProviderOnEachAWSResource);
 
-const aptosNodeAWS = new AptosNodeAWS("aptos-node-aws");
+const aptosNodeAWS = new AptosNodeAWS("aptos-node-aws", {
+    workspaceNameOverride: config.workspaceNameOverride,
+    recordName: config.recordNamePattern,
+    helmReleaseNameOverride: config.helmReleaseNameOverride,
+    region: config.region,
+    clusterConfig: {
+        k8sApiSources: config.k8sApiSources,
+        kubernetesVersion: config.kubernetesVersion,
+        utilitiesNodePool: {
+            instanceType: config.utilityInstanceType,
+            instanceEnableTaint: config.utilityInstanceEnableTaint,
+            instanceMaxNum: config.utilityInstanceMaxNum,
+            instanceMinNum: config.utilityInstanceMinNum,
+            instanceNum: config.utilityInstanceNum,
+        },
+        validatorsNodePool: {
+            instanceType: config.validatorInstanceType,
+            instanceEnableTaint: config.validatorInstanceEnableTaint,
+            instanceMaxNum: config.validatorInstanceMaxNum,
+            instanceMinNum: config.validatorInstanceMinNum,
+            instanceNum: config.validatorInstanceNum,
+        },
+    },
+    dnsConfig: {
+        hostedZoneId: config.zoneId,
+    },
+    networkConfig: {
+        azs: config.azs,
+        maximizeSingleAzCapacity: config.maximizeSingleAzCapacity,
+        vpcCidrBlock: config.vpcCidrBlock,
+    },
+    authConfig: {
+        iamPath: config.iamPath,
+        permissionsBoundaryPolicy: config.permissionsBoundaryPolicy,
+    },
+    kubernetesConfig: {
+        enableMonitoring: config.enableMonitoring,
+        aptosNodeHelmChartPath: config.aptosNodeHelmChartPath,
+        chainId: config.chainId,
+        chainName: config.chainName,
+        era: config.era,
+        fullNodeStorageClass: config.fullnodeStorageClass,
+        iamPath: config.iamPath,
+        imageTag: config.imageTag,
+        k8sAdminRoles: config.k8sAdminRoles,
+        k8sAdmins: config.k8sAdmins,
+        k8sDebuggerRoles: config.k8sDebuggerRoles,
+        k8sDebuggers: config.k8sDebuggers,
+        k8sViewerRoles: config.k8sViewerRoles,
+        k8sViewers: config.k8sViewers,
+        loggerHelmChartPath: config.loggerHelmChartPath,
+        manageViaPulumi: config.manageViaPulumi,
+        monitoringHelmChartPath: config.monitoringHelmChartPath,
+        numFullnodeGroups: config.numFullnodeGroups,
+        numValidators: config.numValidators,
+        validatorName: config.validatorName,
+        validatorStorageClass: config.validatorStorageClass,
+        enableCalico: config.enableCalico,
+        enableKubeStateMetrics: config.enableKubeStateMetrics,
+        enableLogger: config.enableLogger,
+        enablePrometheusNodeExporter: config.enablePrometheusNodeExporter,
+        enableValidator: config.enableValidator,
+        tags: {},
+    },
+    // region: config.region,
+    // iamPath: config.iamPath,
+    // zoneId: config.zoneId,
+    // createRecords: config.createRecords,
+    // workspaceDns: config.workspaceDns,
+    // permissionsBoundaryPolicy: config.permissionsBoundaryPolicy,
+    // workspaceNameOverride: config.workspaceNameOverride,
+    // helmReleaseNameOverride: config.helmReleaseNameOverride,
+    // enableCalico: config.enableCalico,
+    // k8sApiSources: config.k8sApiSources,
+    // k8sAdminRoles: config.k8sAdminRoles,
+    // k8sAdmins: config.k8sAdmins,
+    // chainId: config.chainId,
+    // era: config.era,
+    // chainName: config.chainName,
+    // imageTag: config.imageTag,
+    // validatorName: config.validatorName,
+    // validatorStorageClass: config.validatorStorageClass,
+    // fullnodeStorageClass: config.fullnodeStorageClass,
+    // numValidators: config.numValidators,
+    // numFullnodeGroups: config.numFullnodeGroups,
+    // helmValues: config.helmValues,
+    // validatorInstanceNum: config.validatorInstanceNum,
+    // validatorInstanceMaxNum: config.validatorInstanceMaxNum,
+    // utilityInstanceNum: config.utilityInstanceNum,
+    // utilityInstanceMaxNum: config.utilityInstanceMaxNum,
+    // utilityInstanceType: config.utilityInstanceType,
+    // validatorInstanceType: config.validatorInstanceType,
+    // enableMonitoring: config.enableMonitoring,
+    // enablePrometheusNodeExporter: config.enablePrometheusNodeExporter,
+    // enableKubeStateMetrics: config.enableKubeStateMetrics,
+    // monitoringHelmValues: config.monitoringHelmValues,
+    // loggerHelmValues: config.loggerHelmValues,
+});
 
 // export const oidcProvider = aptosNodeAWS.oidcProvider;
 

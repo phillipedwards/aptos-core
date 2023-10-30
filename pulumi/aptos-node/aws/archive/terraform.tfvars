@@ -13,3 +13,8 @@ enable_monitoring               = true
 enable_prometheus_node_exporter = true
 enable_kube_state_metrics       = true
 helm_chart                      = "/aptos-core/terraform/helm/aptos-node"
+
+# aptosNodeHelmChartPath = ""
+# loggerHelmChartPath = ""
+# monitoringHelmChartPath = ""
+# enableValidator = ""
