@@ -109,6 +109,7 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
             eksCluster: cluster.eksCluster,
             vpcId: network.vpc.id,
             subnetIds: network.privateSubnets.map(subnet => subnet.id),
+            region: args.region,
         }, options);
 
         this.k8sProvider = kubernetes.provider;
