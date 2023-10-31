@@ -1,0 +1,1347 @@
+import * as pulumi from "@pulumi/pulumi";
+import * as _null from "@pulumi/null";
+import * as aws from "@pulumi/aws";
+import * as command from "@pulumi/command";
+import * as helm from "@pulumi/helm";
+import * as kubernetes from "@pulumi/kubernetes";
+import * as random from "@pulumi/random";
+import * as std from "@pulumi/std";
+import * as time from "@pulumiverse/time";
+
+function notImplemented(message: string) {
+    throw new Error(message);
+}
+
+interface AwsArgs {
+    /**
+     * AWS region
+     */
+    region: pulumi.Input<string>,
+    /**
+     * Number of availability zones
+     */
+    numAzs?: pulumi.Input<number>,
+    /**
+     * Version of Kubernetes to use for EKS cluster
+     */
+    kubernetesVersion?: pulumi.Input<string>,
+    /**
+     * List of CIDR subnets which can access the Kubernetes API endpoint
+     */
+    k8sApiSources?: pulumi.Input<any>,
+    /**
+     * The number of validator nodes to create
+     */
+    numValidators?: pulumi.Input<number>,
+    /**
+     * The number of fullnode groups to create
+     */
+    numFullnodeGroups?: pulumi.Input<number>,
+    /**
+     * Chain era, used to start a clean chain
+     */
+    era?: pulumi.Input<number>,
+    /**
+     * Aptos chain ID
+     */
+    chainId?: pulumi.Input<string>,
+    /**
+     * Aptos chain name
+     */
+    chainName?: pulumi.Input<string>,
+    /**
+     * Name of the validator node owner
+     */
+    validatorName: pulumi.Input<string>,
+    /**
+     * Docker image tag for Aptos node
+     */
+    imageTag?: pulumi.Input<string>,
+    /**
+     * Zone ID of Route 53 domain to create records in
+     */
+    zoneId?: pulumi.Input<string>,
+    /**
+     * Include Terraform workspace name in DNS records
+     */
+    workspaceDns?: pulumi.Input<boolean>,
+    /**
+     * DNS record name to use (<workspace> is replaced with the TF workspace name)
+     */
+    recordName?: pulumi.Input<string>,
+    /**
+     * Creates DNS records in var.zone_id that point to k8s service, as opposed to using external-dns or other means
+     */
+    createRecords?: pulumi.Input<boolean>,
+    /**
+     * Path to aptos-validator Helm chart file
+     */
+    helmChart?: pulumi.Input<string>,
+    /**
+     * Map of values to pass to Helm
+     */
+    helmValues?: pulumi.Input<any>,
+    /**
+     * Path to file containing values for Helm chart
+     */
+    helmValuesFile?: pulumi.Input<string>,
+    /**
+     * List of AWS usernames to configure as Kubernetes administrators
+     */
+    k8sAdmins?: pulumi.Input<string[]>,
+    /**
+     * List of AWS roles to configure as Kubernetes administrators
+     */
+    k8sAdminRoles?: pulumi.Input<string[]>,
+    /**
+     * List of AWS usernames to configure as Kubernetes viewers
+     */
+    k8sViewers?: pulumi.Input<string[]>,
+    /**
+     * List of AWS roles to configure as Kubernetes viewers
+     */
+    k8sViewerRoles?: pulumi.Input<string[]>,
+    /**
+     * List of AWS usernames to configure as Kubernetes debuggers
+     */
+    k8sDebuggers?: pulumi.Input<string[]>,
+    /**
+     * List of AWS roles to configure as Kubernetes debuggers
+     */
+    k8sDebuggerRoles?: pulumi.Input<string[]>,
+    /**
+     * Path to use when naming IAM objects
+     */
+    iamPath?: pulumi.Input<string>,
+    /**
+     * ARN of IAM policy to set as permissions boundary on created roles
+     */
+    permissionsBoundaryPolicy?: pulumi.Input<string>,
+    /**
+     * VPC CIDR Block
+     */
+    vpcCidrBlock?: pulumi.Input<string>,
+    /**
+     * Whether to maximize the capacity of the cluster by allocating more IPs to the first AZ
+     */
+    maximizeSingleAzCapacity?: pulumi.Input<boolean>,
+    /**
+     * Enable deployment of the validator Helm chart
+     */
+    helmEnableValidator?: pulumi.Input<boolean>,
+    /**
+     * Instance type used for utilities
+     */
+    utilityInstanceType?: pulumi.Input<string>,
+    /**
+     * Number of instances for utilities
+     */
+    utilityInstanceNum?: pulumi.Input<number>,
+    /**
+     * Minimum number of instances for utilities
+     */
+    utilityInstanceMinNum?: pulumi.Input<number>,
+    /**
+     * Maximum number of instances for utilities. If left 0, defaults to 2 * var.utility_instance_num
+     */
+    utilityInstanceMaxNum?: pulumi.Input<number>,
+    /**
+     * Whether to taint the instances in the utility nodegroup
+     */
+    utilityInstanceEnableTaint?: pulumi.Input<boolean>,
+    /**
+     * Instance type used for validator and fullnodes
+     */
+    validatorInstanceType?: pulumi.Input<string>,
+    /**
+     * Number of instances used for validator and fullnodes
+     */
+    validatorInstanceNum?: pulumi.Input<number>,
+    /**
+     * Minimum number of instances for validators
+     */
+    validatorInstanceMinNum?: pulumi.Input<number>,
+    /**
+     * Maximum number of instances for utilities. If left 0, defaults to 2 * var.validator_instance_num
+     */
+    validatorInstanceMaxNum?: pulumi.Input<number>,
+    /**
+     * Whether to taint instances in the validator nodegroup
+     */
+    validatorInstanceEnableTaint?: pulumi.Input<boolean>,
+    /**
+     * If specified, overrides the usage of Terraform workspace for naming purposes
+     */
+    workspaceNameOverride?: pulumi.Input<string>,
+    /**
+     * Enable Calico networking for NetworkPolicy
+     */
+    enableCalico?: pulumi.Input<boolean>,
+    /**
+     * Enable logger helm chart
+     */
+    enableLogger?: pulumi.Input<boolean>,
+    /**
+     * Map of values to pass to logger Helm
+     */
+    loggerHelmValues?: pulumi.Input<any>,
+    /**
+     * Enable monitoring helm chart
+     */
+    enableMonitoring?: pulumi.Input<boolean>,
+    /**
+     * Map of values to pass to monitoring Helm
+     */
+    monitoringHelmValues?: pulumi.Input<any>,
+    /**
+     * Enable prometheus-node-exporter within monitoring helm chart
+     */
+    enablePrometheusNodeExporter?: pulumi.Input<boolean>,
+    /**
+     * Enable kube-state-metrics within monitoring helm chart
+     */
+    enableKubeStateMetrics?: pulumi.Input<boolean>,
+    /**
+     * If set, overrides the name of the aptos-node helm chart
+     */
+    helmReleaseNameOverride?: pulumi.Input<string>,
+    /**
+     * Which storage class to use for the validator and fullnode
+     */
+    validatorStorageClass?: pulumi.Input<string>,
+    /**
+     * Which storage class to use for the validator and fullnode
+     */
+    fullnodeStorageClass?: pulumi.Input<string>,
+    /**
+     * Whether to manage the aptos-node k8s workload via Terraform. If set to false, the helm_release resource will still be created and updated when values change, but it may not be updated on every apply
+     */
+    manageViaTf?: pulumi.Input<boolean>,
+}
+
+export class Aws extends pulumi.ComponentResource {
+    public helmReleaseName: pulumi.Output<any>;
+    public awsEksCluster: pulumi.Output<aws.eks.Cluster>;
+    public awsEksClusterAuthToken: pulumi.Output<string>;
+    public oidcProvider: pulumi.Output<any>;
+    public validatorEndpoint: pulumi.Output<any>;
+    public fullnodeEndpoint: pulumi.Output<any>;
+    public vpcId: pulumi.Output<string>;
+    public awsSubnetPublic: pulumi.Output<aws.ec2.Subnet>;
+    public awsSubnetPrivate: pulumi.Output<aws.ec2.Subnet>;
+    public awsVpcCidrBlock: pulumi.Output<string>;
+    public awsEipNatPublicIp: pulumi.Output<string>;
+    public clusterSecurityGroupId: pulumi.Output<string>;
+    constructor(name: string, args: AwsArgs, opts?: pulumi.ComponentResourceOptions) {
+        super("components:index:Aws", name, args, opts);
+        args.numAzs = args.numAzs || 3;
+        args.kubernetesVersion = args.kubernetesVersion || "1.24";
+        args.k8sApiSources = args.k8sApiSources || ["0.0.0.0/0"];
+        args.numValidators = args.numValidators || 1;
+        args.numFullnodeGroups = args.numFullnodeGroups || 1;
+        args.era = args.era || 1;
+        args.chainId = args.chainId || "TESTING";
+        args.chainName = args.chainName || "testnet";
+        args.imageTag = args.imageTag || "devnet";
+        args.zoneId = args.zoneId || "";
+        args.workspaceDns = args.workspaceDns || true;
+        args.recordName = args.recordName || "<workspace>.aptos";
+        args.createRecords = args.createRecords || true;
+        args.helmChart = args.helmChart || "";
+        args.helmValues = args.helmValues || {};
+        args.helmValuesFile = args.helmValuesFile || "";
+        args.k8sAdmins = args.k8sAdmins || [];
+        args.k8sAdminRoles = args.k8sAdminRoles || [];
+        args.k8sViewers = args.k8sViewers || [];
+        args.k8sViewerRoles = args.k8sViewerRoles || [];
+        args.k8sDebuggers = args.k8sDebuggers || [];
+        args.k8sDebuggerRoles = args.k8sDebuggerRoles || [];
+        args.iamPath = args.iamPath || "/";
+        args.permissionsBoundaryPolicy = args.permissionsBoundaryPolicy || "";
+        args.vpcCidrBlock = args.vpcCidrBlock || "192.168.0.0/16";
+        args.maximizeSingleAzCapacity = args.maximizeSingleAzCapacity || false;
+        args.helmEnableValidator = args.helmEnableValidator || true;
+        args.utilityInstanceType = args.utilityInstanceType || "t3.2xlarge";
+        args.utilityInstanceNum = args.utilityInstanceNum || 1;
+        args.utilityInstanceMinNum = args.utilityInstanceMinNum || 1;
+        args.utilityInstanceMaxNum = args.utilityInstanceMaxNum || 0;
+        args.utilityInstanceEnableTaint = args.utilityInstanceEnableTaint || false;
+        args.validatorInstanceType = args.validatorInstanceType || "c6i.8xlarge";
+        args.validatorInstanceNum = args.validatorInstanceNum || 2;
+        args.validatorInstanceMinNum = args.validatorInstanceMinNum || 1;
+        args.validatorInstanceMaxNum = args.validatorInstanceMaxNum || 0;
+        args.validatorInstanceEnableTaint = args.validatorInstanceEnableTaint || false;
+        args.workspaceNameOverride = args.workspaceNameOverride || "";
+        args.enableCalico = args.enableCalico || true;
+        args.enableLogger = args.enableLogger || false;
+        args.loggerHelmValues = args.loggerHelmValues || {};
+        args.enableMonitoring = args.enableMonitoring || false;
+        args.monitoringHelmValues = args.monitoringHelmValues || {};
+        args.enablePrometheusNodeExporter = args.enablePrometheusNodeExporter || false;
+        args.enableKubeStateMetrics = args.enableKubeStateMetrics || false;
+        args.helmReleaseNameOverride = args.helmReleaseNameOverride || "";
+        args.validatorStorageClass = args.validatorStorageClass || "io1";
+        args.fullnodeStorageClass = args.fullnodeStorageClass || "io1";
+        args.manageViaTf = args.manageViaTf || true;
+        const available = aws.getAvailabilityZonesOutput({
+            state: "available",
+        });
+
+        const awsAvailabilityZones = notImplemented("slice(sort(data.aws_availability_zones.available.names),0,min(3,length(data.aws_availability_zones.available.names)))");
+
+        const workspaceName = args.workspaceNameOverride == "" ? notImplemented("terraform.workspace") : args.workspaceNameOverride;
+
+        const defaultTags = {
+            terraform: "validator",
+            workspace: workspaceName,
+        };
+
+        const current = aws.getCallerIdentityOutput({});
+
+        const eks-assume - role = aws.iam.getPolicyDocumentOutput({
+            statements: [{
+                actions: ["sts:AssumeRole"],
+                principals: [{
+                    type: "Service",
+                    identifiers: ["eks.amazonaws.com"],
+                }],
+            }],
+        });
+
+        const cluster = new aws.iam.Role(`${name}-cluster`, {
+            name: `aptos-${workspaceName}-cluster`,
+            path: args.iamPath,
+            assumeRolePolicy: eks_assume_role.apply(eks_assume_role => eks_assume_role.json),
+            permissionsBoundary: args.permissionsBoundaryPolicy,
+            tags: defaultTags,
+        }, {
+            parent: this,
+        });
+
+        const cluster_cluster = new aws.iam.RolePolicyAttachment(`${name}-cluster-cluster`, {
+            policyArn: "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
+            role: cluster.name,
+        }, {
+            parent: this,
+        });
+
+        const cluster_service = new aws.iam.RolePolicyAttachment(`${name}-cluster-service`, {
+            policyArn: "arn:aws:iam::aws:policy/AmazonEKSServicePolicy",
+            role: cluster.name,
+        }, {
+            parent: this,
+        });
+
+        const ec2-assume - role = aws.iam.getPolicyDocumentOutput({
+            statements: [{
+                actions: ["sts:AssumeRole"],
+                principals: [{
+                    type: "Service",
+                    identifiers: ["ec2.amazonaws.com"],
+                }],
+            }],
+        });
+
+        const nodes = new aws.iam.Role(`${name}-nodes`, {
+            name: `aptos-${workspaceName}-nodes`,
+            path: args.iamPath,
+            assumeRolePolicy: ec2_assume_role.apply(ec2_assume_role => ec2_assume_role.json),
+            permissionsBoundary: args.permissionsBoundaryPolicy,
+            tags: defaultTags,
+        }, {
+            parent: this,
+        });
+
+        const nodesResource = new aws.iam.InstanceProfile(`${name}-nodes`, {
+            name: `aptos-${workspaceName}-nodes`,
+            role: nodes.name,
+            path: args.iamPath,
+        }, {
+            parent: this,
+        });
+
+        const nodes_node = new aws.iam.RolePolicyAttachment(`${name}-nodes-node`, {
+            policyArn: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+            role: nodes.name,
+        }, {
+            parent: this,
+        });
+
+        const nodes_cni = new aws.iam.RolePolicyAttachment(`${name}-nodes-cni`, {
+            policyArn: "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+            role: nodes.name,
+        }, {
+            parent: this,
+        });
+
+        const nodes_ecr = new aws.iam.RolePolicyAttachment(`${name}-nodes-ecr`, {
+            policyArn: "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+            role: nodes.name,
+        }, {
+            parent: this,
+        });
+
+        const lbCreation = new time.Sleep(`${name}-lb_creation`, { createDuration: "2m" }, {
+            parent: this,
+        });
+
+        const validator_dns = new random.RandomString(`${name}-validator-dns`, {
+            upper: false,
+            special: false,
+            length: 16,
+        }, {
+            parent: this,
+        });
+
+        const aptosData = (new Array(args.zoneId != "" ? 1 : 0)).map((_, i) => i).map(__index => (aws.route53.getZoneOutput({
+            zoneId: args.zoneId,
+        })));
+
+        const dnsPrefix = args.workspaceDns ? `${workspaceName}.` : "";
+
+        const myrecordName = notImplemented("replace(var.record_name,\"<workspace>\",local.workspace_name)");
+
+        const domain = args.zoneId != "" ? aptosData[0].apply(aptosDatum => `${dnsPrefix}${aptosDatum.name}`) : undefined;
+
+        const validator-lb = (new Array(args.zoneId == "" || !args.createRecords ? 0 : 1)).map((_, i) => i).map(__index => (kubernetes.index.service({
+            metadata: [{
+                name: `${workspaceName}-aptos-node-0-validator-lb`,
+            }],
+        })));
+
+        const fullnode-lb = (new Array(args.zoneId == "" || !args.createRecords ? 0 : 1)).map((_, i) => i).map(__index => (kubernetes.index.service({
+            metadata: [{
+                name: `${workspaceName}-aptos-node-0-fullnode-lb`,
+            }],
+        })));
+
+        const validator: aws.route53.Record[] = [];
+        for (const range = { value: 0 }; range.value < (args.zoneId == "" || !args.createRecords ? 0 : 1); range.value++) {
+            validator.push(new aws.route53.Record(`${name}-validator-${range.value}`, {
+                zoneId: args.zoneId,
+                name: pulumi.interpolate`${validator_dns.result}.${myrecordName}`,
+                type: "CNAME",
+                ttl: 3600,
+                records: [validator_lb[0].status[0].loadBalancer[0].ingress[0].hostname],
+            }, {
+                parent: this,
+            }));
+        }
+
+        const fullnode: aws.route53.Record[] = [];
+        for (const range = { value: 0 }; range.value < (args.zoneId == "" || !args.createRecords ? 0 : 1); range.value++) {
+            fullnode.push(new aws.route53.Record(`${name}-fullnode-${range.value}`, {
+                zoneId: args.zoneId,
+                name: myrecordName,
+                type: "CNAME",
+                ttl: 3600,
+                records: [fullnode_lb[0].status[0].loadBalancer[0].ingress[0].hostname],
+            }, {
+                parent: this,
+            }));
+        }
+
+        const mynumAzs = awsAvailabilityZones.length;
+
+        const numOtherSubnets = mynumAzs * 2 - 1;
+
+        const maxSubnetCidrRanges = notImplemented("cidrsubnets(var.vpc_cidr_block,1,[forxinrange(local.num_other_subnets):1+ceil(pow(local.num_other_subnets,0.5))]...)");
+
+        const maxPrivateSubnetCidrRanges = notImplemented("slice(local.max_subnet_cidr_ranges,0,local.num_azs)");
+
+        const maxPublicSubnetCidrRanges = notImplemented("slice(local.max_subnet_cidr_ranges,local.num_azs,local.num_azs*2)");
+
+        const vpc = new aws.ec2.Vpc(`${name}-vpc`, {
+            cidrBlock: args.vpcCidrBlock,
+            enableDnsHostnames: true,
+            tags: notImplemented(`merge(local.default_tags,{
+Name="aptos-\${local.workspace_name}"
+"kubernetes.io/cluster/aptos-\${local.workspace_name}"="shared"
+})`),
+        }, {
+            parent: this,
+        });
+
+        const defaultPublicSubnetCidrRanges = pulumi.all([std.rangeOutput({
+            limit: mynumAzs,
+        }), std.cidrsubnetOutput({
+            input: std.cidrsubnetOutput({
+                input: vpc.cidrBlock,
+                newbits: 1,
+                netnum: 0,
+            }).apply(invoke => invoke.result),
+            newbits: 2,
+            netnum: x,
+        })]).apply(([invoke, invoke1]) => .map(x => (invoke1.result)));
+
+        const defaultPrivateSubnetCidrRanges = pulumi.all([std.rangeOutput({
+            limit: mynumAzs,
+        }), std.cidrsubnetOutput({
+            input: std.cidrsubnetOutput({
+                input: vpc.cidrBlock,
+                newbits: 1,
+                netnum: 1,
+            }).apply(invoke => invoke.result),
+            newbits: 2,
+            netnum: x,
+        })]).apply(([invoke, invoke1]) => .map(x => (invoke1.result)));
+
+        const publicSubnetCidrRanges = args.maximizeSingleAzCapacity ? maxPublicSubnetCidrRanges : defaultPublicSubnetCidrRanges;
+
+        const privateSubnetCidrRanges = args.maximizeSingleAzCapacity ? maxPrivateSubnetCidrRanges : defaultPrivateSubnetCidrRanges;
+
+        const _public: aws.ec2.Subnet[] = [];
+        for (const range = { value: 0 }; range.value < mynumAzs; range.value++) {
+            _public.push(new aws.ec2.Subnet(`${name}-public-${range.value}`, {
+                vpcId: vpc.id,
+                cidrBlock: publicSubnetCidrRanges[range.value],
+                availabilityZone: awsAvailabilityZones[range.value],
+                mapPublicIpOnLaunch: true,
+                tags: notImplemented(`merge(local.default_tags,{
+Name="aptos-\${local.workspace_name}/public-\${local.aws_availability_zones[count.index]}"
+"kubernetes.io/cluster/aptos-\${local.workspace_name}"="shared"
+"kubernetes.io/role/elb"="1"
+})`),
+            }, {
+                parent: this,
+            }));
+        }
+
+        const publicResource = new aws.ec2.InternetGateway(`${name}-public`, {
+            vpcId: vpc.id,
+            tags: notImplemented(`merge(local.default_tags,{
+Name="aptos-\${local.workspace_name}"
+})`),
+        }, {
+            parent: this,
+        });
+
+        const publicResource2 = new aws.ec2.RouteTable(`${name}-public`, {
+            vpcId: vpc.id,
+            routes: [{
+                cidrBlock: "0.0.0.0/0",
+                gatewayId: publicResource.id,
+            }],
+            tags: notImplemented(`merge(local.default_tags,{
+Name="aptos-\${local.workspace_name}/public"
+})`),
+        }, {
+            parent: this,
+        });
+
+        const publicResource3: aws.ec2.RouteTableAssociation[] = [];
+        for (const range = { value: 0 }; range.value < mynumAzs; range.value++) {
+            publicResource3.push(new aws.ec2.RouteTableAssociation(`${name}-public-${range.value}`, {
+                subnetId: _public.map(__item => __item.id)[range.value],
+                routeTableId: publicResource2.id,
+            }, {
+                parent: this,
+            }));
+        }
+
+        const _private: aws.ec2.Subnet[] = [];
+        for (const range = { value: 0 }; range.value < mynumAzs; range.value++) {
+            _private.push(new aws.ec2.Subnet(`${name}-private-${range.value}`, {
+                vpcId: vpc.id,
+                cidrBlock: privateSubnetCidrRanges[range.value],
+                availabilityZone: awsAvailabilityZones[range.value],
+                tags: notImplemented(`merge(local.default_tags,{
+Name="aptos-\${local.workspace_name}/private-\${local.aws_availability_zones[count.index]}"
+"kubernetes.io/cluster/aptos-\${local.workspace_name}"="shared"
+"kubernetes.io/role/internal-elb"="1"
+})`),
+            }, {
+                parent: this,
+            }));
+        }
+
+        const nat = new aws.ec2.Eip(`${name}-nat`, {
+            vpc: true,
+            tags: notImplemented(`merge(local.default_tags,{
+Name="aptos-\${local.workspace_name}-nat"
+})`),
+        }, {
+            parent: this,
+        });
+
+        const privateResource = new aws.ec2.NatGateway(`${name}-private`, {
+            allocationId: nat.id,
+            subnetId: _public[0].id,
+            tags: defaultTags,
+        }, {
+            parent: this,
+        });
+
+        const privateResource2 = new aws.ec2.RouteTable(`${name}-private`, {
+            vpcId: vpc.id,
+            routes: [{
+                cidrBlock: "0.0.0.0/0",
+                natGatewayId: privateResource.id,
+            }],
+            tags: notImplemented(`merge(local.default_tags,{
+Name="aptos-\${local.workspace_name}/private"
+})`),
+        }, {
+            parent: this,
+        });
+
+        const privateResource3: aws.ec2.RouteTableAssociation[] = [];
+        for (const range = { value: 0 }; range.value < mynumAzs; range.value++) {
+            privateResource3.push(new aws.ec2.RouteTableAssociation(`${name}-private-${range.value}`, {
+                subnetId: _private.map(__item => __item.id)[range.value],
+                routeTableId: privateResource2.id,
+            }, {
+                parent: this,
+            }));
+        }
+
+        const clusterResource2 = new aws.ec2.SecurityGroup(`${name}-cluster`, {
+            name: `aptos-${workspaceName}/cluster`,
+            description: "k8s masters",
+            vpcId: vpc.id,
+            tags: notImplemented(`merge(local.default_tags,{
+"kubernetes.io/cluster/aptos-\${local.workspace_name}"="owned"
+})`),
+        }, {
+            parent: this,
+        });
+
+        const nodesResource4 = new aws.ec2.SecurityGroup(`${name}-nodes`, {
+            name: `aptos-${workspaceName}/nodes`,
+            description: "k8s nodes",
+            vpcId: vpc.id,
+            tags: notImplemented(`merge(local.default_tags,{
+"kubernetes.io/cluster/aptos-\${local.workspace_name}"="owned"
+})`),
+        }, {
+            parent: this,
+        });
+
+        const cluster_api = new aws.ec2.SecurityGroupRule(`${name}-cluster-api`, {
+            securityGroupId: clusterResource2.id,
+            type: "ingress",
+            protocol: "tcp",
+            fromPort: 443,
+            toPort: 443,
+            sourceSecurityGroupId: nodesResource4.id,
+            description: "Allow API traffic from k8s nodes",
+        }, {
+            parent: this,
+        });
+
+        const cluster_kubelet = new aws.ec2.SecurityGroupRule(`${name}-cluster-kubelet`, {
+            securityGroupId: clusterResource2.id,
+            type: "egress",
+            protocol: "tcp",
+            fromPort: 10250,
+            toPort: 10250,
+            sourceSecurityGroupId: nodesResource4.id,
+            description: "Allow kubelet traffic to k8s nodes",
+        }, {
+            parent: this,
+        });
+
+        const nodes_tcp = new aws.ec2.SecurityGroupRule(`${name}-nodes-tcp`, {
+            securityGroupId: nodesResource4.id,
+            type: "ingress",
+            protocol: "tcp",
+            fromPort: 1025,
+            toPort: 65535,
+            sourceSecurityGroupId: nodesResource4.id,
+            description: "Allow TCP traffic between k8s nodes",
+        }, {
+            parent: this,
+        });
+
+        const nodes_udp = new aws.ec2.SecurityGroupRule(`${name}-nodes-udp`, {
+            securityGroupId: nodesResource4.id,
+            type: "ingress",
+            protocol: "udp",
+            fromPort: 1025,
+            toPort: 65535,
+            sourceSecurityGroupId: nodesResource4.id,
+            description: "Allow UDP traffic between k8s nodes",
+        }, {
+            parent: this,
+        });
+
+        const nodes_icmp = new aws.ec2.SecurityGroupRule(`${name}-nodes-icmp`, {
+            securityGroupId: nodesResource4.id,
+            type: "ingress",
+            protocol: "icmp",
+            fromPort: -1,
+            toPort: -1,
+            sourceSecurityGroupId: nodesResource4.id,
+            description: "Allow ICMP traffic between k8s nodes",
+        }, {
+            parent: this,
+        });
+
+        const nodes_dns = new aws.ec2.SecurityGroupRule(`${name}-nodes-dns`, {
+            securityGroupId: nodesResource4.id,
+            type: "ingress",
+            protocol: "udp",
+            fromPort: 53,
+            toPort: 53,
+            sourceSecurityGroupId: nodesResource4.id,
+            description: "Allow DNS traffic between k8s nodes",
+        }, {
+            parent: this,
+        });
+
+        const nodes_kubelet = new aws.ec2.SecurityGroupRule(`${name}-nodes-kubelet`, {
+            securityGroupId: nodesResource4.id,
+            type: "ingress",
+            protocol: "tcp",
+            fromPort: 10250,
+            toPort: 10250,
+            sourceSecurityGroupId: clusterResource2.id,
+            description: "Allow kubelet traffic from k8s masters",
+        }, {
+            parent: this,
+        });
+
+        const nodes_egress = new aws.ec2.SecurityGroupRule(`${name}-nodes-egress`, {
+            securityGroupId: nodesResource4.id,
+            type: "egress",
+            protocol: "-1",
+            fromPort: 0,
+            toPort: 0,
+            cidrBlocks: ["0.0.0.0/0"],
+            description: "Allow all outgoing traffic",
+        }, {
+            parent: this,
+        });
+
+        const eks = new aws.cloudwatch.LogGroup(`${name}-eks`, {
+            name: `/aws/eks/aptos-${workspaceName}/cluster`,
+            retentionInDays: 7,
+            tags: defaultTags,
+        }, {
+            parent: this,
+        });
+
+        const aptosResource = new aws.eks.Cluster(`${name}-aptos`, {
+            name: `aptos-${workspaceName}`,
+            roleArn: cluster.arn,
+            version: args.kubernetesVersion,
+            enabledClusterLogTypes: [
+                "api",
+                "audit",
+                "authenticator",
+                "controllerManager",
+                "scheduler",
+            ],
+            tags: defaultTags,
+            vpcConfig: {
+                subnetIds: std.concatOutput({
+                    input: [
+                        _public.map(__item => __item.id),
+                        _private.map(__item => __item.id),
+                    ],
+                }).apply(invoke => invoke.result),
+                publicAccessCidrs: args.k8sApiSources,
+                endpointPrivateAccess: true,
+                securityGroupIds: [clusterResource2.id],
+            },
+        }, {
+            parent: this,
+        });
+
+        const aptos = aws.eks.getClusterAuthOutput({
+            name: aptosResource.name,
+        });
+
+        const pools = {
+            utilities: {
+                instanceType: args.utilityInstanceType,
+                minSize: args.utilityInstanceMinNum,
+                desiredSize: args.utilityInstanceNum,
+                maxSize: args.utilityInstanceMaxNum > 0 ? args.utilityInstanceMaxNum : 2 * args.utilityInstanceNum,
+                taint: args.utilityInstanceEnableTaint,
+            },
+            validators: {
+                instanceType: args.validatorInstanceType,
+                minSize: args.validatorInstanceMinNum,
+                desiredSize: args.validatorInstanceNum,
+                maxSize: args.validatorInstanceMaxNum > 0 ? args.validatorInstanceMaxNum : 2 * args.validatorInstanceNum,
+                taint: args.validatorInstanceEnableTaint,
+            },
+        };
+
+        const nodesResource2: aws.ec2.LaunchTemplate[] = [];
+        for (const range of Object.entries(pools).map(([k, v]) => ({ key: k, value: v }))) {
+            nodesResource2.push(new aws.ec2.LaunchTemplate(`${name}-nodes-${range.key}`, {
+                name: `aptos-${workspaceName}/${range.key}`,
+                instanceType: range.value.instanceType,
+                blockDeviceMappings: [{
+                    deviceName: "/dev/xvda",
+                    ebs: {
+                        deleteOnTermination: "true",
+                        volumeSize: 100,
+                        volumeType: "gp3",
+                    },
+                }],
+                tagSpecifications: [{
+                    resourceType: "instance",
+                    tags: notImplemented(`merge(local.default_tags,{
+Name="aptos-\${local.workspace_name}/\${each.key}",
+})`),
+                }],
+            }, {
+                parent: this,
+            }));
+        }
+
+        const nodesResource3: aws.eks.NodeGroup[] = [];
+        for (const range of Object.entries(pools).map(([k, v]) => ({ key: k, value: v }))) {
+            nodesResource3.push(new aws.eks.NodeGroup(`${name}-nodes-${range.key}`, {
+                taints: (range.value.taint ? [pools[range.key]] : []).map((v, k) => ({ key: k, value: v })).map(entry => ({
+                    key: "aptos.org/nodepool",
+                    value: range.key,
+                    effect: "NO_EXECUTE",
+                })),
+                clusterName: aptosResource.name,
+                nodeGroupName: range.key,
+                version: aptosResource.version,
+                nodeRoleArn: nodes.arn,
+                subnetIds: [_private[0].id],
+                tags: defaultTags,
+                launchTemplate: {
+                    id: nodesResource2[range.key].id,
+                    version: nodesResource2[range.key].latestVersion,
+                },
+                scalingConfig: {
+                    desiredSize: range.value.desiredSize,
+                    minSize: range.value.minSize,
+                    maxSize: range.value.maxSize,
+                },
+                updateConfig: {
+                    maxUnavailablePercentage: 50,
+                },
+            }, {
+                parent: this,
+            }));
+        }
+
+        const clusterResource = new aws.iam.OpenIdConnectProvider(`${name}-cluster`, {
+            clientIdLists: ["sts.amazonaws.com"],
+            thumbprintLists: ["9e99a48a9960b14926bb7f3b02e22da2b0ab7280"],
+            url: aptosResource.identities.apply(identities => identities[0].oidcs?.[0]?.issuer),
+        }, {
+            parent: this,
+        });
+
+        const oidcProvider = notImplemented("replace(aws_iam_openid_connect_provider.cluster.url,\"https://\",\"\")");
+
+        const aws-ebs - csi - driver - trust - policy = aws.iam.getPolicyDocumentOutput({
+            statements: [{
+                actions: ["sts:AssumeRoleWithWebIdentity"],
+                principals: [{
+                    type: "Federated",
+                    identifiers: [current.apply(current => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
+                }],
+                conditions: [
+                    {
+                        test: "StringEquals",
+                        variable: `${oidcProvider}:sub`,
+                        values: ["system:serviceaccount:kube-system:ebs-csi-controller-sa"],
+                    },
+                    {
+                        test: "StringEquals",
+                        variable: `${oidcProvider}:aud`,
+                        values: ["sts.amazonaws.com"],
+                    },
+                ],
+            }],
+        });
+
+        const aws_ebs_csi_driver = new aws.iam.Role(`${name}-aws-ebs-csi-driver`, {
+            name: `aptos-${workspaceName}-ebs-csi-controller`,
+            path: args.iamPath,
+            permissionsBoundary: args.permissionsBoundaryPolicy,
+            assumeRolePolicy: aws_ebs_csi_driver_trust_policy.apply(aws_ebs_csi_driver_trust_policy => aws_ebs_csi_driver_trust_policy.json),
+        }, {
+            parent: this,
+        });
+
+        const caws_ebs_csi_driver = new aws.iam.RolePolicyAttachment(`${name}-caws-ebs-csi-driver`, {
+            role: aws_ebs_csi_driver.name,
+            policyArn: "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy",
+        }, {
+            parent: this,
+        });
+
+        const aws_ebs_csi_driverResource = new aws.eks.Addon(`${name}-aws-ebs-csi-driver`, {
+            clusterName: aptosResource.name,
+            addonName: "aws-ebs-csi-driver",
+            serviceAccountRoleArn: aws_ebs_csi_driver.arn,
+        }, {
+            parent: this,
+        });
+
+        const kubeconfig = std.md5Output({
+            input: std.timestampOutput({}).apply(invoke => invoke.result),
+        }).apply(invoke => `/tmp/kube.config.${invoke.result}`);
+
+        const monitoringHelmChartPath = `${notImplemented("path.module")}/../../helm/monitoring`;
+
+        const loggerHelmChartPath = `${notImplemented("path.module")}/../../helm/logger`;
+
+        const aptosNodeHelmChartPath = args.helmChart != "" ? args.helmChart : `${notImplemented("path.module")}/../../helm/aptos-node`;
+
+        const delete_gp2 = new _null.Resource(`${name}-delete-gp2`, {}, {
+            parent: this,
+        });
+
+        const delete_gp2Provisioner0 = new command.local.Command(`${name}-delete-gp2Provisioner0`, {
+            create: pulumi.interpolate`aws --region ${args.region} eks update-kubeconfig --name ${aptosResource.name} --kubeconfig ${kubeconfig} &&
+kubectl --kubeconfig ${kubeconfig} delete --ignore-not-found storageclass gp2
+`}, {
+            parent: this,
+            dependsOn: [delete_gp2],
+        });
+
+        const gp3 = new kubernetes.storage.v1.StorageClass(`${name}-gp3`, {
+            metadata: {
+                name: "gp3",
+                annotations: {
+                    "storageclass.kubernetes.io/is-default-class": "false",
+                },
+            },
+            storageProvisioner: "ebs.csi.aws.com",
+            volumeBindingMode: "WaitForFirstConsumer",
+            parameters: {
+                type: "gp3",
+            },
+        }, {
+            parent: this,
+        });
+
+        const io1 = new kubernetes.storage.v1.StorageClass(`${name}-io1`, {
+            metadata: {
+                name: "io1",
+            },
+            storageProvisioner: "kubernetes.io/aws-ebs",
+            volumeBindingMode: "WaitForFirstConsumer",
+            parameters: {
+                type: "io1",
+                iopsPerGB: "50",
+            },
+        }, {
+            parent: this,
+        });
+
+        const io2 = new kubernetes.storage.v1.StorageClass(`${name}-io2`, {
+            metadata: {
+                name: "io2",
+            },
+            storageProvisioner: "ebs.csi.aws.com",
+            volumeBindingMode: "WaitForFirstConsumer",
+            parameters: {
+                type: "io2",
+                iops: "40000",
+            },
+        }, {
+            parent: this,
+        });
+
+        const tigera_operator = new kubernetes.core.v1.Namespace(`${name}-tigera-operator`, {
+            metadata: {
+                annotations: {
+                    name: "tigera-operator",
+                },
+                name: "tigera-operator",
+            }
+        }, {
+            parent: this,
+        });
+
+        const calico: helm.index.Release[] = [];
+        for (const range = { value: 0 }; range.value < (args.enableCalico ? 1 : 0); range.value++) {
+            calico.push(new helm.index.Release(`${name}-calico-${range.value}`, {
+                name: "calico",
+                repository: "https://docs.tigera.io/calico/charts",
+                chart: "tigera-operator",
+                version: "3.26.0",
+                namespace: "tigera-operator",
+            }, {
+                parent: this,
+            }));
+        }
+
+        const helmReleaseName = args.helmReleaseNameOverride != "" ? args.helmReleaseNameOverride : workspaceName;
+
+        const logger: helm.index.Release[] = [];
+        for (const range = { value: 0 }; range.value < (args.enableLogger ? 1 : 0); range.value++) {
+            logger.push(new helm.index.Release(`${name}-logger-${range.value}`, {
+                name: `${helmReleaseName}-log`,
+                chart: loggerHelmChartPath,
+                maxHistory: 5,
+                wait: false,
+                values: [
+                    JSON.stringify({
+                        logger: {
+                            name: "aptos-logger",
+                        },
+                        chain: {
+                            name: args.chainName,
+                        },
+                        serviceAccount: {
+                            create: false,
+                            name: helmReleaseName == "aptos-node" ? "aptos-node-validator" : `${helmReleaseName}-aptos-node-validator`,
+                        },
+                    }),
+                    JSON.stringify(args.loggerHelmValues),
+                ],
+                set: [{
+                    name: "chart_sha1",
+                    value: std.sha1Output({
+                        input: std.joinOutput({
+                            separator: "",
+                            input: .map(f => (std.filesha1Output({
+                                input: `${loggerHelmChartPath}/${f}`,
+                            }).result)),
+                        }).result,
+                    }).result,
+                }],
+            }, {
+                parent: this,
+            }));
+        }
+
+        const myhelmValues = domain.apply(domain => JSON.stringify({
+            numValidators: args.numValidators,
+            numFullnodeGroups: args.numFullnodeGroups,
+            imageTag: args.imageTag,
+            manageImages: args.manageViaTf,
+            chain: {
+                era: args.era,
+                chainId: args.chainId,
+                name: args.chainName,
+            },
+            validator: {
+                name: args.validatorName,
+                storage: {
+                    "class": args.validatorStorageClass,
+                },
+                nodeSelector: {
+                    "eks.amazonaws.com/nodegroup": "validators",
+                },
+                tolerations: [{
+                    key: "aptos.org/nodepool",
+                    value: "validators",
+                    effect: "NoExecute",
+                }],
+                remoteLogAddress: args.enableLogger ? `${logger[0].name}-aptos-logger.${logger[0].namespace}.svc:5044` : undefined,
+            },
+            fullnode: {
+                storage: {
+                    "class": args.fullnodeStorageClass,
+                },
+                nodeSelector: {
+                    "eks.amazonaws.com/nodegroup": "validators",
+                },
+                tolerations: [{
+                    key: "aptos.org/nodepool",
+                    value: "validators",
+                    effect: "NoExecute",
+                }],
+            },
+            haproxy: {
+                nodeSelector: {
+                    "eks.amazonaws.com/nodegroup": "utilities",
+                },
+            },
+            service: {
+                domain: domain,
+            },
+        }));
+
+        const validatorResource: helm.index.Release[] = [];
+        for (const range = { value: 0 }; range.value < (args.helmEnableValidator ? 1 : 0); range.value++) {
+            validatorResource.push(new helm.index.Release(`${name}-validator-${range.value}`, {
+                set: Object.entries(args.manageViaTf ? notImplemented("toset([\"\"])") : notImplemented("toset([])")).map(([k, v]) => ({ key: k, value: v })).map(entry => ({
+                    name: "chart_sha1",
+                    value: std.sha1Output({
+                        input: std.joinOutput({
+                            separator: "",
+                            input: .map(f => (std.filesha1Output({
+                                input: `${aptosNodeHelmChartPath}/${f}`,
+                            }).result)),
+                        }).result,
+                    }).result,
+                })),
+                name: helmReleaseName,
+                chart: aptosNodeHelmChartPath,
+                maxHistory: 5,
+                wait: false,
+                values: [
+                    myhelmValues,
+                    args.helmValuesFile != "" ? std.fileOutput({
+                        input: args.helmValuesFile,
+                    }).result : "{}",
+                    JSON.stringify(args.helmValues),
+                ],
+            }, {
+                parent: this,
+            }));
+        }
+
+        const monitoring: helm.index.Release[] = [];
+        for (const range = { value: 0 }; range.value < (args.enableMonitoring ? 1 : 0); range.value++) {
+            monitoring.push(new helm.index.Release(`${name}-monitoring-${range.value}`, {
+                name: `${helmReleaseName}-mon`,
+                chart: monitoringHelmChartPath,
+                maxHistory: 5,
+                wait: false,
+                values: [
+                    JSON.stringify({
+                        chain: {
+                            name: args.chainName,
+                        },
+                        validator: {
+                            name: args.validatorName,
+                        },
+                        service: {
+                            domain: domain,
+                        },
+                        monitoring: {
+                            prometheus: {
+                                storage: {
+                                    "class": gp3.metadata.name,
+                                },
+                            },
+                        },
+                        "kube-state-metrics": {
+                            enabled: args.enableKubeStateMetrics,
+                        },
+                        "prometheus-node-exporter": {
+                            enabled: args.enablePrometheusNodeExporter,
+                        },
+                    }),
+                    JSON.stringify(args.monitoringHelmValues),
+                ],
+                set: [{
+                    name: "chart_sha1",
+                    value: std.sha1Output({
+                        input: std.joinOutput({
+                            separator: "",
+                            input: .map(f => (std.filesha1Output({
+                                input: `${monitoringHelmChartPath}/${f}`,
+                            }).result)),
+                        }).result,
+                    }).result,
+                }],
+            }, {
+                parent: this,
+            }));
+        }
+
+        const debug = new kubernetes.rbac.v1.ClusterRole(`${name}-debug`, {
+            metadata: {
+                name: "debug",
+            },
+            rule: [{
+                apiGroups: [""],
+                resources: [
+                    "pods/portforward",
+                    "pods/exec",
+                ],
+                verbs: ["create"],
+            }],
+        }, {
+            parent: this,
+        });
+
+        const debuggers = new kubernetes.rbac.v1.RoleBinding(`${name}-debuggers`, {
+            metadata: {
+                name: "debuggers",
+            },
+            roleRef: {
+                apiGroup: "rbac.authorization.k8s.io",
+                kind: "ClusterRole",
+                name: debug.metadata.apply(metadata => metadata.name),
+            },
+            subject: [{
+                kind: "Group",
+                name: "debuggers",
+            }],
+        }, {
+            parent: this,
+        });
+
+        const viewers = new kubernetes.rbac.v1.RoleBinding(`${name}-viewers`, {
+            metadata: {
+                name: "viewers",
+            },
+            roleRef: {
+                apiGroup: "rbac.authorization.k8s.io",
+                kind: "ClusterRole",
+                name: "view",
+            },
+            subject: [
+                {
+                    kind: "Group",
+                    name: "viewers",
+                },
+                {
+                    kind: "Group",
+                    name: "debuggers",
+                },
+            ],
+        }, {
+            parent: this,
+        });
+
+        const aws_auth = new kubernetes.core.v1.ConfigMap(`${name}-aws-auth`, {
+            metadata: {
+                name: "aws-auth",
+                namespace: "kube-system",
+            },
+            data: {
+                mapRoles: notImplemented(`yamlencode(concat(
+[{
+rolearn=aws_iam_role.nodes.arn
+username="system:node:{{EC2PrivateDNSName}}"
+groups=["system:bootstrappers","system:nodes"]
+}],
+var.iam_path=="/"?[]:[{
+# Workaround for https://github.com/kubernetes-sigs/aws-iam-authenticator/issues/268
+# The entry above is still needed otherwise EKS marks the node group as unhealthy
+rolearn=replace(aws_iam_role.nodes.arn,"role\${var.iam_path}","role/")
+username="system:node:{{EC2PrivateDNSName}}"
+groups=["system:bootstrappers","system:nodes"]
+}],
+[forroleinvar.k8s_admin_roles:{
+rolearn="arn:aws:iam::\${data.aws_caller_identity.current.account_id}:role/\${role}"
+username="\${role}:{{SessionName}}"
+groups=["system:masters"]
+}],
+[forroleinvar.k8s_viewer_roles:{
+rolearn="arn:aws:iam::\${data.aws_caller_identity.current.account_id}:role/\${role}"
+username="\${role}:{{SessionName}}"
+groups=["viewers"]
+}],
+[forroleinvar.k8s_debugger_roles:{
+rolearn="arn:aws:iam::\${data.aws_caller_identity.current.account_id}:role/\${role}"
+username="\${role}:{{SessionName}}"
+groups=["debuggers"]
+}],
+))`),
+                mapUsers: notImplemented(`yamlencode(concat(
+[foruserinvar.k8s_admins:{
+userarn="arn:aws:iam::\${data.aws_caller_identity.current.account_id}:user/\${user}"
+username=user
+groups=["system:masters"]
+}],
+[foruserinvar.k8s_viewers:{
+userarn="arn:aws:iam::\${data.aws_caller_identity.current.account_id}:user/\${user}"
+username=user
+groups=["viewers"]
+}],
+[foruserinvar.k8s_debuggers:{
+userarn="arn:aws:iam::\${data.aws_caller_identity.current.account_id}:user/\${user}"
+username=user
+groups=["debuggers"]
+}],
+))`),
+            },
+        }, {
+            parent: this,
+        });
+
+        const all = kubernetes.index.allNamespaces({});
+
+        const kubernetesMasterVersion = std.substrOutput({
+            input: aptosResource.version,
+            length: 0,
+            offset: 4,
+        }).apply(invoke => invoke.result);
+
+        const baselinePssLabels = {
+            "pod-security.kubernetes.io/audit": "baseline",
+            "pod-security.kubernetes.io/warn": "baseline",
+            "pod-security.kubernetes.io/enforce": "privileged",
+        };
+
+        // FIXME: Remove when migrating to K8s 1.25
+        const disable_psp: kubernetes.rbac.v1.RoleBinding[] = [];
+        for (const range = { value: 0 }; range.value < notImplemented("toset(local.kubernetes_master_version<=\"1.24\"?data.kubernetes_all_namespaces.all.namespaces:[])"); range.value++) {
+            disable_psp.push(new kubernetes.rbac.v1.RoleBinding(`${name}-disable-psp-${range.value}`, {
+                metadata: {
+                    name: "privileged-psp",
+                    namespace: range.value,
+                },
+                roleRef: {
+                    apiGroup: "rbac.authorization.k8s.io",
+                    kind: "ClusterRole",
+                    name: "eks:podsecuritypolicy:privileged",
+                },
+                subject: [{
+                    apiGroup: "rbac.authorization.k8s.io",
+                    kind: "Group",
+                    name: `system:serviceaccounts:${range.value}`,
+                }],
+            }, {
+                parent: this,
+            }));
+        }
+
+        // FIXME: Remove when migrating to K8s 1.25
+        const delete_psp_authenticated: _null.Resource[] = [];
+        (kubernetesMasterVersion <= 1.24 ? 1 : 0).apply(rangeBody => {
+            for (const range = { value: 0 }; range.value < rangeBody; range.value++) {
+                delete_psp_authenticated.push(new _null.Resource(`${name}-delete-psp-authenticated-${range.value}`, {}, {
+                    parent: this,
+                }));
+            }
+        });
+
+        const delete_psp_authenticatedProvisioner0 = new command.local.Command(`${name}-delete-psp-authenticatedProvisioner0`, {
+            create: pulumi.interpolate`aws --region ${args.region} eks update-kubeconfig --name ${aptosResource.name} --kubeconfig ${kubeconfig} &&
+kubectl --kubeconfig ${kubeconfig} delete --ignore-not-found clusterrolebinding eks:podsecuritypolicy:authenticated
+`}, {
+            parent: this,
+            dependsOn: [delete_psp_authenticated],
+        });
+
+        const pss_default = new kubernetes.index.Labels(`${name}-pss-default`, {
+            apiVersion: "v1",
+            kind: "Namespace",
+            metadata: [{
+                name: "default",
+            }],
+            labels: baselinePssLabels,
+        }, {
+            parent: this,
+        });
+
+        this.helmReleaseName = validatorResource[0].name;
+        this.awsEksCluster = pulumi.output(aptosResource);
+        this.awsEksClusterAuthToken = aptos.apply(aptos => aptos.token);
+        this.oidcProvider = oidcProvider;
+        this.validatorEndpoint = args.zoneId == "" || !args.createRecords ? undefined : pulumi.interpolate`/dns4/${validator[0].fqdn}/tcp/${validator_lb[0].spec[0].port[0].port}`;
+        this.fullnodeEndpoint = args.zoneId == "" || !args.createRecords ? undefined : pulumi.interpolate`/dns4/${fullnode[0].fqdn}/tcp/${fullnode_lb[0].spec[0].port[0].port}`;
+        this.vpcId = vpc.id;
+        this.awsSubnetPublic = pulumi.output(_public);
+        this.awsSubnetPrivate = pulumi.output(_private);
+        this.awsVpcCidrBlock = vpc.cidrBlock;
+        this.awsEipNatPublicIp = nat.publicIp;
+        this.clusterSecurityGroupId = aptosResource.vpcConfig.apply(vpcConfig => vpcConfig.clusterSecurityGroupId);
+        this.registerOutputs({
+            helmReleaseName: validatorResource[0].name,
+            awsEksCluster: aptosResource,
+            awsEksClusterAuthToken: aptos.token,
+            oidcProvider: oidcProvider,
+            validatorEndpoint: args.zoneId == "" || !args.createRecords ? undefined : pulumi.interpolate`/dns4/${validator[0].fqdn}/tcp/${validator_lb[0].spec[0].port[0].port}`,
+            fullnodeEndpoint: args.zoneId == "" || !args.createRecords ? undefined : pulumi.interpolate`/dns4/${fullnode[0].fqdn}/tcp/${fullnode_lb[0].spec[0].port[0].port}`,
+            vpcId: vpc.id,
+            awsSubnetPublic: _public,
+            awsSubnetPrivate: _private,
+            awsVpcCidrBlock: vpc.cidrBlock,
+            awsEipNatPublicIp: nat.publicIp,
+            clusterSecurityGroupId: aptosResource.vpcConfig.clusterSecurityGroupId,
+        });
+    }
+}

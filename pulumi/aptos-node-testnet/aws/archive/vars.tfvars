@@ -1,0 +1,12 @@
+region = "us-west-2"
+zone_id = 
+workspace_name_override = "default"
+enable_monitoring = false
+enable_prometheus_node_exporter = false
+enable_kube_state_metrics = false
+enable_node_health_checker = false
+utility_instance_type = "t3.large"
+validator_instance_type = "t3.large"
+validator_storage_class = "gp3"
+fullnode_storage_class = "gp3"
+manage_via_pulumi = true
