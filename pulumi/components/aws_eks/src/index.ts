@@ -10,10 +10,6 @@ import * as path from 'path';
 import * as yaml from "yaml";
 import * as defaults from "../../../config/defaults";
 
-function notImplemented(message: string) {
-    throw new Error(message);
-}
-
 export interface awsEksClusterArgs {
     eksClusterName: pulumi.Input<string>;
     region: pulumi.Input<string>;
@@ -77,48 +73,7 @@ export class awsEksCluster extends pulumi.ComponentResource {
 
         const awsConfig = new pulumi.Config("aws");
         const config = new pulumi.Config();
-        // AWS region
-        // const region: pulumi.Input<string> = awsConfig.require("region");
-        // Version of Kubernetes to use for EKS cluster
-        // const kubernetesVersion: pulumi.Input<string> = config.get("kubernetesVersion") || "1.22";
-        // Name of the eks cluster
-        // const eksClusterName: pulumi.Input<string> = config.require("eksClusterName");
-        // List of CIDR subnets which can access the Kubernetes API endpoint
-        // const k8sApiSources = config.getObject("k8sApiSources") || ["0.0.0.0/0"];
-        // List of AWS usernames to configure as Kubernetes administrators
-        // const k8sAdmins: pulumi.Input<string>[] = config.getObject<Array<string>>("k8sAdmins") || [];
-        // List of AWS roles to configure as Kubernetes administrators
-        // const k8sAdminRoles: pulumi.Input<string>[] = config.getObject<Array<string>>("k8sAdminRoles") || [];
-        // List of AWS usernames to configure as Kubernetes viewers
-        // const k8sViewers: pulumi.Input<string>[] = config.getObject<Array<string>>("k8sViewers") || [];
-        // List of AWS roles to configure as Kubernetes viewers
-        // const k8sViewerRoles: pulumi.Input<string>[] = config.getObject<Array<string>>("k8sViewerRoles") || [];
-        // List of AWS usernames to configure as Kubernetes debuggers
-        // const k8sDebuggers: pulumi.Input<string>[] = config.getObject<Array<string>>("k8sDebuggers") || [];
-        // List of AWS roles to configure as Kubernetes debuggers
-        // const k8sDebuggerRoles: pulumi.Input<string>[] = config.getObject<Array<string>>("k8sDebuggerRoles") || [];
-        // Path to use when naming IAM objects
-        // const iamPath: pulumi.Input<string> = config.get("iamPath") || "/";
-        // ARN of IAM policy to set as permissions boundary on created roles
-        // const permissionsBoundaryPolicy: pulumi.Input<string> = config.get("permissionsBoundaryPolicy") || "";
-        // VPC CIDR Block
-        // const vpcCidrBlock: pulumi.Input<string> = config.get("vpcCidrBlock") || "192.168.0.0/16";
-        // Instance type used for utilities
-        // const utilityInstanceType: pulumi.Input<string> = config.get("utilityInstanceType") || "t3.medium";
-        // Instance type used for validator and fullnodes
-        // const fullnodeInstanceType: pulumi.Input<string> = config.get("fullnodeInstanceType") || "c6i.8xlarge";
-        // Number of fullnodes to deploy
-        // const numFullnodes: pulumi.Input<number> = config.getNumber("numFullnodes") || 1;
-        // Override the number of nodes in the specified pool
-        // const nodePoolSizes = config.getObject<Record<string, number>>("nodePoolSizes") || {};
-        // If specified, overrides the usage of Terraform workspace for naming purposes
-        // const workspaceNameOverride: pulumi.Input<string> = config.get("workspaceNameOverride") || "";
-        // Number of extra instances to add into node pool
-        // const numExtraInstance: pulumi.Input<number> = config.getNumber("numExtraInstance") || 0;
-        // const available = aws.getAvailabilityZonesOutput({
-        //     state: "available",
-        // });
-        // const awsAvailabilityZones = notImplemented("slice(sort(data.aws_availability_zones.available.names),0,min(3,length(data.aws_availability_zones.available.names)))");
+
 
         const awsAvailabilityZones = this.getAvailabilityZones();
 
@@ -646,7 +601,7 @@ export class awsEksCluster extends pulumi.ComponentResource {
             url: this.eksCluster.identities.apply(identities => identities[0].oidcs?.[0]?.issuer),
         });
 
-        const oidcProvider = notImplemented("replace(aws_iam_openid_connect_provider.cluster.url,\"https://\",\"\")");
+        const oidcProvider = pulumi.all([cluster.url]).apply(([url]) => url.replace("https://", ""));
         const iamDocForEbsCsiDriverTrust = aws.iam.getPolicyDocumentOutput({
             statements: [{
                 actions: ["sts:AssumeRoleWithWebIdentity"],
