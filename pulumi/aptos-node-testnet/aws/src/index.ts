@@ -172,8 +172,13 @@ if (zoneId) {
 
 // 
 
-const currentAwsAccountId = aws.getCallerIdentityOutput({});
-const awsTags = pulumi.interpolate`Terraform=testnet,Workspace=${workspaceName}`;
+const currentAwsCallerIdentity = aws.getCallerIdentityOutput({});
+const currentAwsAccountId = currentAwsCallerIdentity.accountId;
+const awsTagsMap: pulumi.Input<object> = {
+    "pulumi/organziation": pulumi.getOrganization(),
+    "pulumi/project": pulumi.getProject(),
+    "pulumi/stack": pulumi.getStack(),
+}
 const mychainName = chainName != "" ? pulumi.interpolate`${chainName}` : pulumi.interpolate`${workspaceName}net`;
 const mychainId = enableForge ? 4 : chainId;
 
@@ -227,13 +232,11 @@ const validator = new AptosNodeAWS("validator", {
 
 const aptosNodeHelmPrefix = enableForge ? "aptos-node" : pulumi.interpolate`${validator.helmReleaseName}-aptos-node`;
 
-const genesisHelmChartPath = `${notImplemented("path.module")}/../../helm/genesis`;
-
-const chartSha1 = crypto.createHash("sha1").update(fs.readFileSync(genesisHelmChartPath)).digest("hex");
+const genesisHelmChartPath = std.abspath({ input: "../../helm/genesis" });
 
 const helmReleaseForGenesis = new k8s.helm.v3.Release("genesis", {
     name: "genesis",
-    chart: genesisHelmChartPath,
+    chart: genesisHelmChartPath.then(genesisHelmChartPath => genesisHelmChartPath.result),
     maxHistory: 5,
     waitForJobs: false,
     values: [
@@ -408,7 +411,7 @@ const k8sAwsIntegrationsAssumeRole = aws.iam.getPolicyDocumentOutput({
         actions: ["sts:AssumeRoleWithWebIdentity"],
         principals: [{
             type: "Federated",
-            identifiers: [pulumi.all([currentAwsAccountId, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
+            identifiers: [pulumi.all([currentAwsCallerIdentity, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
         }],
         conditions: [
             {
@@ -452,20 +455,24 @@ const albIngressResource = new aws.iam.RolePolicy("albIngress", {
     policy: albIngress.apply(albIngress => albIngress.json),
 });
 
-const autoscalingHelmChartPath = `${notImplemented("path.module")}/../../helm/autoscaling`;
+// const autoscalingHelmChartPath = `${notImplemented("path.module")}/../../helm/autoscaling`;
+const autoscalingHelmChartPath = std.abspath({ input: "../../helm/autoscaling" });
 
-const chaosMeshHelmChartPath = `${notImplemented("path.module")}/../../helm/chaos`;
+// const chaosMeshHelmChartPath = `${notImplemented("path.module")}/../../helm/chaos`;
+const chaosMeshHelmChartPath = std.abspath({ input: "../../helm/chaos" });
 
-const testnetAddonsHelmChartPath = `${notImplemented("path.module")}/../../helm/testnet-addons`;
+// const testnetAddonsHelmChartPath = `${notImplemented("path.module")}/../../helm/testnet-addons`;
+const testnetAddonsHelmChartPath = std.abspath({ input: "../../helm/testnet-addons" });
 
-const nodeHealthCheckerHelmChartPath = `${notImplemented("path.module")}/../../helm/node-health-checker`;
+// const nodeHealthCheckerHelmChartPath = `${notImplemented("path.module")}/../../helm/node-health-checker`;
+const nodeHealthCheckerHelmChartPath = std.abspath({ input: "../../helm/node-health-checker" });
 
 const clusterAutoscalerAssumeRole = aws.iam.getPolicyDocumentOutput({
     statements: [{
         actions: ["sts:AssumeRoleWithWebIdentity"],
         principals: [{
             type: "Federated",
-            identifiers: [pulumi.all([currentAwsAccountId, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
+            identifiers: [pulumi.all([currentAwsCallerIdentity, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
         }],
         conditions: [
             {
@@ -492,7 +499,7 @@ const clusterAutoscalerResource = new aws.iam.Role("clusterAutoscaler", {
 const autoscaling = new k8s.helm.v3.Release("autoscaling", {
     name: "autoscaling",
     namespace: "kube-system",
-    chart: autoscalingHelmChartPath,
+    chart: autoscalingHelmChartPath.then(autoscalingHelmChartPath => autoscalingHelmChartPath.result),
     maxHistory: 5,
     waitForJobs: false,
     values: [JSON.stringify({
@@ -575,7 +582,7 @@ const k8sNamesapceChaosMesh = new k8s.core.v1.Namespace("chaos-mesh", {
 const helmReleaseForChaosMesh = new k8s.helm.v3.Release("chaos-mesh", {
     name: "chaos-mesh",
     namespace: k8sNamesapceChaosMesh.metadata.name,
-    chart: chaosMeshHelmChartPath,
+    chart: chaosMeshHelmChartPath.then(chaosMeshHelmChartPath => chaosMeshHelmChartPath.result),
     maxHistory: 5,
     waitForJobs: false,
     values: [JSON.stringify({
@@ -587,7 +594,7 @@ const helmReleaseForChaosMesh = new k8s.helm.v3.Release("chaos-mesh", {
                 separator: ",",
                 input: clientSourcesIpv4,
             }).result,
-            awsTags: awsTags,
+            awsTags: awsTagsMap,
         },
         "chaos-mesh": {
             chaosDaemon: {
@@ -661,7 +668,7 @@ if (zoneId) {
 if (enableForge) {
     const helmReleaseForTestnetAddons = new k8s.helm.v3.Release(`testnet-addons`, {
         name: "testnet-addons",
-        chart: testnetAddonsHelmChartPath,
+        chart: testnetAddonsHelmChartPath.then(testnetAddonsHelmChartPath => testnetAddonsHelmChartPath.result),
         maxHistory: 5,
         waitForJobs: false,
         values: [
@@ -675,7 +682,7 @@ if (enableForge) {
                 },
                 service: {
                     domain: domain,
-                    awsTags: awsTags,
+                    awsTags: awsTagsMap,
                 },
                 ingress: {
                     acmCertificate: awsAcmCertForIngress ? awsAcmCertForIngress.arn : undefined,
@@ -698,7 +705,7 @@ if (enableForge) {
             actions: ["sts:AssumeRoleWithWebIdentity"],
             principals: [{
                 type: "Federated",
-                identifiers: [pulumi.all([currentAwsAccountId, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
+                identifiers: [pulumi.all([currentAwsCallerIdentity, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
             }],
             conditions: [
                 {
@@ -722,11 +729,12 @@ if (enableForge) {
         assumeRolePolicy: iamDocForForgeAssumeRole.apply(forgeAssumeRole => forgeAssumeRole.json),
     });
 
-    const forgeHelmChartPath = `${notImplemented("path.module")}/../../helm/forge`;
+    // const forgeHelmChartPath = `${notImplemented("path.module")}/../../helm/forge`;
+    const forgeHelmChartPath = std.abspath({ input: "../../helm/forge" });
 
     const helmReleaseForForge = new k8s.helm.v3.Release(`forge`, {
         name: "forge",
-        chart: forgeHelmChartPath,
+        chart: forgeHelmChartPath.then(forgeHelmChartPath => forgeHelmChartPath.result),
         maxHistory: 2,
         waitForJobs: false,
         values: [
@@ -768,7 +776,7 @@ if (enableForge) {
 if (enableNodeHealthChecker) {
     const helmReleaseForNodeHealthChecker = new k8s.helm.v3.Release(`node-health-checker`, {
         name: "node-health-checker",
-        chart: nodeHealthCheckerHelmChartPath,
+        chart: nodeHealthCheckerHelmChartPath.then(nodeHealthCheckerHelmChartPath => nodeHealthCheckerHelmChartPath.result),
         maxHistory: 5,
         waitForJobs: false,
         values: [
