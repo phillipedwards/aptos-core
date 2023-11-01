@@ -15,26 +15,26 @@ function notImplemented(message: string) {
 }
 
 export interface awsEksClusterArgs {
-    region: pulumi.Input<string>;
     eksClusterName: pulumi.Input<string>;
-    fullnodeInstanceType: pulumi.Input<string>;
-    iamPath: pulumi.Input<string>;
-    k8sAdminRoles: pulumi.Input<string>[];
-    k8sAdmins: pulumi.Input<string>[];
-    k8sApiSources: pulumi.Input<string>[];
-    k8sDebuggerRoles: pulumi.Input<string>[];
-    k8sDebuggers: pulumi.Input<string>[];
-    k8sViewerRoles: pulumi.Input<string>[];
-    k8sViewers: pulumi.Input<string>[];
-    kubernetesVersion: pulumi.Input<string>;
-    nodePoolSizes: Map<string, pulumi.Input<number>>;
-    numExtraInstance: pulumi.Input<number>;
-    numFullnodes: pulumi.Input<number>;
-    permissionsBoundaryPolicy: pulumi.Input<string>;
-    utilityInstanceType: pulumi.Input<string>;
-    vpcCidrBlock: pulumi.Input<string>;
-    workspaceNameOverride: pulumi.Input<string>;
+    region: pulumi.Input<string>;
+    fullnodeInstanceType?: pulumi.Input<string>;
+    iamPath?: pulumi.Input<string>;
+    k8sAdminRoles?: pulumi.Input<string>[];
+    k8sAdmins?: pulumi.Input<string>[];
+    k8sApiSources?: pulumi.Input<string>[];
+    k8sDebuggerRoles?: pulumi.Input<string>[];
+    k8sDebuggers?: pulumi.Input<string>[];
     k8sDefaultProviderAlias?: pulumi.Input<string>;
+    k8sViewerRoles?: pulumi.Input<string>[];
+    k8sViewers?: pulumi.Input<string>[];
+    kubernetesVersion?: pulumi.Input<string>;
+    nodePoolSizes?: Map<string, pulumi.Input<number>>;
+    numExtraInstance?: pulumi.Input<number>;
+    numFullnodes?: pulumi.Input<number>;
+    permissionsBoundaryPolicy?: pulumi.Input<string>;
+    utilityInstanceType?: pulumi.Input<string>;
+    vpcCidrBlock?: pulumi.Input<string>;
+    workspaceNameOverride?: pulumi.Input<string>;
 }
 
 export class awsEksCluster extends pulumi.ComponentResource {
@@ -122,20 +122,20 @@ export class awsEksCluster extends pulumi.ComponentResource {
 
         const awsAvailabilityZones = this.getAvailabilityZones();
 
-        args.kubernetesVersion = (args.kubernetesVersion || args.kubernetesVersion !== "") ? args.kubernetesVersion : "1.22";
-        args.k8sApiSources = (args.k8sApiSources) ? args.k8sApiSources : ["0.0.0.0/0"];
-        args.k8sAdmins = (args.k8sAdmins) ? args.k8sAdmins : [];
-        args.k8sAdminRoles = (args.k8sAdminRoles) ? args.k8sAdminRoles : [];
-        args.k8sViewers = (args.k8sViewers) ? args.k8sViewers : [];
-        args.k8sViewerRoles = (args.k8sViewerRoles) ? args.k8sViewerRoles : [];
-        args.k8sDebuggers = (args.k8sDebuggers) ? args.k8sDebuggers : [];
-        args.k8sDebuggerRoles = (args.k8sDebuggerRoles) ? args.k8sDebuggerRoles : [];
-        args.iamPath = (args.iamPath || args.iamPath !== "") ? args.iamPath : "/";
-        args.permissionsBoundaryPolicy = (args.permissionsBoundaryPolicy || args.permissionsBoundaryPolicy !== "") ? args.permissionsBoundaryPolicy : "";
-        args.vpcCidrBlock = (args.vpcCidrBlock || args.vpcCidrBlock !== "") ? args.vpcCidrBlock : "192.168.0.0/16";
-        args.utilityInstanceType = (args.utilityInstanceType || args.utilityInstanceType !== "") ? args.utilityInstanceType : "t3.medium";
         args.fullnodeInstanceType = (args.fullnodeInstanceType || args.fullnodeInstanceType !== "") ? args.fullnodeInstanceType : "c6i.8xlarge";
+        args.iamPath = (args.iamPath || args.iamPath !== "") ? args.iamPath : "/";
+        args.k8sAdminRoles = (args.k8sAdminRoles) ? args.k8sAdminRoles : [];
+        args.k8sAdmins = (args.k8sAdmins) ? args.k8sAdmins : [];
+        args.k8sApiSources = (args.k8sApiSources) ? args.k8sApiSources : ["0.0.0.0/0"];
+        args.k8sDebuggerRoles = (args.k8sDebuggerRoles) ? args.k8sDebuggerRoles : [];
+        args.k8sDebuggers = (args.k8sDebuggers) ? args.k8sDebuggers : [];
+        args.k8sViewerRoles = (args.k8sViewerRoles) ? args.k8sViewerRoles : [];
+        args.k8sViewers = (args.k8sViewers) ? args.k8sViewers : [];
+        args.kubernetesVersion = (args.kubernetesVersion || args.kubernetesVersion !== "") ? args.kubernetesVersion : "1.22";
         args.numFullnodes = (args.numFullnodes) ? args.numFullnodes : 1;
+        args.permissionsBoundaryPolicy = (args.permissionsBoundaryPolicy || args.permissionsBoundaryPolicy !== "") ? args.permissionsBoundaryPolicy : "";
+        args.utilityInstanceType = (args.utilityInstanceType || args.utilityInstanceType !== "") ? args.utilityInstanceType : "t3.medium";
+        args.vpcCidrBlock = (args.vpcCidrBlock || args.vpcCidrBlock !== "") ? args.vpcCidrBlock : "192.168.0.0/16";
         args.nodePoolSizes = (args.nodePoolSizes || args.nodePoolSizes !== "") ? args.nodePoolSizes : new Map<string, number>([
             ['utilities', 1],
             ['fullnode', 1]
@@ -224,7 +224,6 @@ export class awsEksCluster extends pulumi.ComponentResource {
             path: args.iamPath,
             assumeRolePolicy: iamDocForNodesRoleAssumption.apply(ec2AssumeRole => ec2AssumeRole.json),
             permissionsBoundary: args.permissionsBoundaryPolicy,
-            // tags: defaultTags,
         });
 
         this.iamInstanceProfileForNodes = new aws.iam.InstanceProfile("nodes", {
@@ -258,7 +257,7 @@ export class awsEksCluster extends pulumi.ComponentResource {
         });
 
         const vpcK8sTag = new aws.ec2.Tag("k8s.io/cluster/aptos-${workspaceName}-vpc", {
-            resourceId: "",
+            resourceId: this.vpc.id,
             key: k8sioClusterTagKey,
             value: "shared",
         });
