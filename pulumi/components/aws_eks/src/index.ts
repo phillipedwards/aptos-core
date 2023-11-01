@@ -601,7 +601,7 @@ export class awsEksCluster extends pulumi.ComponentResource {
             url: this.eksCluster.identities.apply(identities => identities[0].oidcs?.[0]?.issuer),
         });
 
-        const oidcProvider = pulumi.all([cluster.url]).apply(([url]) => url.replace("https://", ""));
+        const oidcProvider = pulumi.all([providerForOIDC.url]).apply(([url]) => url.replace("https://", ""));
         const iamDocForEbsCsiDriverTrust = aws.iam.getPolicyDocumentOutput({
             statements: [{
                 actions: ["sts:AssumeRoleWithWebIdentity"],
