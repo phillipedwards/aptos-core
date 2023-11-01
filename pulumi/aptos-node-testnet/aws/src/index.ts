@@ -8,9 +8,11 @@ import * as transformations from './transformation';
 import * as crypto from "crypto";
 import * as fs from "fs";
 
-function notImplemented(message: string) {
-    throw new Error(message);
-}
+type AptosNodeHelmValues = {
+    fullnode?: {
+        groups?: string[],
+    },
+};
 
 // Register the alias transformation on the stack to import from `pulumi import from...`
 pulumi.log.info(`Registering aliasTransformation transformation`);
@@ -60,7 +62,7 @@ export const imageTag: pulumi.Input<string> = config.get("imageTag") || "devnet"
 // Docker image tag for validators and fullnodes. If set, overrides var.image_tag for those nodes
 export const validatorImageTag: pulumi.Input<string> = config.get("validatorImageTag") || "";
 // Map of values to pass to aptos-node helm chart
-export const aptosNodeHelmValues: pulumi.Input<object> = config.getObject("aptosNodeHelmValues") || {};
+export const aptosNodeHelmValues: pulumi.Input<AptosNodeHelmValues> = config.getObject<AptosNodeHelmValues>("aptosNodeHelmValues") || {};
 // Map of values to pass to genesis helm chart
 export const genesisHelmValues: pulumi.Input<object> = config.getObject("genesisHelmValues") || {};
 // Map of values to pass to logger helm chart
@@ -234,35 +236,49 @@ const aptosNodeHelmPrefix = enableForge ? "aptos-node" : pulumi.interpolate`${va
 
 const genesisHelmChartPath = std.abspath({ input: "../../helm/genesis" });
 
+const filesForGenesisHelm = pulumi.all([
+    genesisHelmChartPath,
+]).apply(([path]) => {
+    return fs.readdirSync(path.result);
+});
+let sha1sumForHelmReleaseGenesis = crypto.createHash('sha1');
+
+pulumi.all([
+    filesForGenesisHelm,
+    genesisHelmChartPath,
+]).apply(([files, path]) => {
+    for (const file of files) {
+        const data = fs.readFileSync(`${path.result}/${file}`);
+        sha1sumForHelmReleaseGenesis.update(data);
+    }
+});
+
 const helmReleaseForGenesis = new k8s.helm.v3.Release("genesis", {
     name: "genesis",
     chart: genesisHelmChartPath.then(genesisHelmChartPath => genesisHelmChartPath.result),
     maxHistory: 5,
     waitForJobs: false,
-    values: [
-        JSON.stringify({
-            chain: {
-                name: mychainName,
-                era: era,
-                chainId: mychainId,
+    values: {
+        imageTag: imageTag,
+        chain: {
+            name: mychainName,
+            era: era,
+            chainId: mychainId,
+        },
+        genesis: {
+            numValidators: numValidators,
+            usernamePrefix: aptosNodeHelmPrefix,
+            domain: domain,
+            validator: {
+                enableOnchainDiscovery: false,
             },
-            imageTag: imageTag,
-            genesis: {
-                numValidators: numValidators,
-                usernamePrefix: aptosNodeHelmPrefix,
-                // TODO: fix domain
-                domain: "domain",
-                validator: {
-                    enableOnchainDiscovery: false,
-                },
-                fullnode: {
-                    enableOnchainDiscovery: zoneId != "",
-                },
+            fullnode: {
+                enableOnchainDiscovery: zoneId != "",
             },
-        }),
-        JSON.stringify(genesisHelmValues),
-    ],
-    // TODO: implement the set
+        },
+        ...genesisHelmValues,
+        chart_sha1: manageViaPulumi ? sha1sumForHelmReleaseGenesis.digest('hex') : "",
+    },
 });
 
 const iamDocForExternalDnsRt53 = aws.iam.getPolicyDocumentOutput({
@@ -455,16 +471,9 @@ const albIngressResource = new aws.iam.RolePolicy("albIngress", {
     policy: albIngress.apply(albIngress => albIngress.json),
 });
 
-// const autoscalingHelmChartPath = `${notImplemented("path.module")}/../../helm/autoscaling`;
 const autoscalingHelmChartPath = std.abspath({ input: "../../helm/autoscaling" });
-
-// const chaosMeshHelmChartPath = `${notImplemented("path.module")}/../../helm/chaos`;
 const chaosMeshHelmChartPath = std.abspath({ input: "../../helm/chaos" });
-
-// const testnetAddonsHelmChartPath = `${notImplemented("path.module")}/../../helm/testnet-addons`;
 const testnetAddonsHelmChartPath = std.abspath({ input: "../../helm/testnet-addons" });
-
-// const nodeHealthCheckerHelmChartPath = `${notImplemented("path.module")}/../../helm/node-health-checker`;
 const nodeHealthCheckerHelmChartPath = std.abspath({ input: "../../helm/node-health-checker" });
 
 const clusterAutoscalerAssumeRole = aws.iam.getPolicyDocumentOutput({
@@ -496,13 +505,30 @@ const clusterAutoscalerResource = new aws.iam.Role("clusterAutoscaler", {
     assumeRolePolicy: clusterAutoscalerAssumeRole.apply(clusterAutoscalerAssumeRole => clusterAutoscalerAssumeRole.json),
 });
 
+const filesForTestnetAutoscalingHelm = pulumi.all([
+    autoscalingHelmChartPath,
+]).apply(([path]) => {
+    return fs.readdirSync(path.result);
+});
+let sha1sumForAutoscalingHelmRelease = crypto.createHash('sha1');
+
+pulumi.all([
+    filesForTestnetAutoscalingHelm,
+    autoscalingHelmChartPath,
+]).apply(([files, path]) => {
+    for (const file of files) {
+        const data = fs.readFileSync(`${path.result}/${file}`);
+        sha1sumForAutoscalingHelmRelease.update(data);
+    }
+});
+
 const autoscaling = new k8s.helm.v3.Release("autoscaling", {
     name: "autoscaling",
     namespace: "kube-system",
     chart: autoscalingHelmChartPath.then(autoscalingHelmChartPath => autoscalingHelmChartPath.result),
     maxHistory: 5,
     waitForJobs: false,
-    values: [JSON.stringify({
+    values: {
         coredns: {
             maxReplicas: numValidators,
         },
@@ -526,8 +552,8 @@ const autoscaling = new k8s.helm.v3.Release("autoscaling", {
                 },
             },
         },
-    })],
-    // TODO: implement the set
+        chart_sha1: manageViaPulumi ? sha1sumForAutoscalingHelmRelease.digest('hex') : "",
+    },
 });
 
 const iamDocForClusterAutoscaler = aws.iam.getPolicyDocumentOutput({
@@ -579,13 +605,30 @@ const k8sNamesapceChaosMesh = new k8s.core.v1.Namespace("chaos-mesh", {
     }
 });
 
+const filesForChaosMeshHelm = pulumi.all([
+    chaosMeshHelmChartPath,
+]).apply(([path]) => {
+    return fs.readdirSync(path.result);
+});
+let sha1sumForChaosMeshHelmRelease = crypto.createHash('sha1');
+
+pulumi.all([
+    filesForChaosMeshHelm,
+    chaosMeshHelmChartPath,
+]).apply(([files, path]) => {
+    for (const file of files) {
+        const data = fs.readFileSync(`${path.result}/${file}`);
+        sha1sumForChaosMeshHelmRelease.update(data);
+    }
+});
+
 const helmReleaseForChaosMesh = new k8s.helm.v3.Release("chaos-mesh", {
     name: "chaos-mesh",
     namespace: k8sNamesapceChaosMesh.metadata.name,
     chart: chaosMeshHelmChartPath.then(chaosMeshHelmChartPath => chaosMeshHelmChartPath.result),
     maxHistory: 5,
     waitForJobs: false,
-    values: [JSON.stringify({
+    values: {
         ingress: {
             enable: zoneId ? true : false,
             domain: zoneId ? pulumi.interpolate`chaos.${domain}` : "",
@@ -605,11 +648,11 @@ const helmReleaseForChaosMesh = new k8s.helm.v3.Release("chaos-mesh", {
                 }],
             },
         },
-    })],
-    // TODO: implement the set
+        chart_sha1: manageViaPulumi ? sha1sumForChaosMeshHelmRelease.digest('hex') : "",
+    },
 });
-// service account used for all external AWS-facing services, such as ALB ingress controller and externalDns
 
+// service account used for all external AWS-facing services, such as ALB ingress controller and externalDns
 const k8sSaForK8sAwsIntegrations = new k8s.core.v1.ServiceAccount("k8s-aws-integrations", {
     metadata: {
         name: "k8s-aws-integrations",
@@ -619,9 +662,9 @@ const k8sSaForK8sAwsIntegrations = new k8s.core.v1.ServiceAccount("k8s-aws-integ
         },
     }
 });
+
 // when upgrading the AWS ALB ingress controller, update the CRDs as well using:
 // kubectl apply -k "github.com/aws/eks-charts/stable/aws-load-balancer-controller/crds?ref=master"
-
 const helmReleaseForAwsLBController = new k8s.helm.v3.Release("aws-load-balancer-controller", {
     name: "aws-load-balancer-controller",
     repositoryOpts: {
@@ -666,38 +709,53 @@ if (zoneId) {
 }
 
 if (enableForge) {
+    const filesForTestnetAddonsHelm = pulumi.all([
+        testnetAddonsHelmChartPath,
+    ]).apply(([path]) => {
+        return fs.readdirSync(path.result);
+    });
+    let sha1sumForTestnetAddonsHelmRelease = crypto.createHash('sha1');
+
+    pulumi.all([
+        filesForTestnetAddonsHelm,
+        testnetAddonsHelmChartPath,
+    ]).apply(([files, path]) => {
+        for (const file of files) {
+            const data = fs.readFileSync(`${path.result}/${file}`);
+            sha1sumForTestnetAddonsHelmRelease.update(data);
+        }
+    });
+
     const helmReleaseForTestnetAddons = new k8s.helm.v3.Release(`testnet-addons`, {
         name: "testnet-addons",
         chart: testnetAddonsHelmChartPath.then(testnetAddonsHelmChartPath => testnetAddonsHelmChartPath.result),
         maxHistory: 5,
         waitForJobs: false,
-        values: [
-            JSON.stringify({
-                imageTag: imageTag,
-                genesis: {
-                    era: era,
-                    usernamePrefix: aptosNodeHelmPrefix,
-                    chainId: chainId,
-                    numValidators: numValidators,
+        values: {
+            imageTag: imageTag,
+            genesis: {
+                era: era,
+                usernamePrefix: aptosNodeHelmPrefix,
+                chainId: chainId,
+                numValidators: numValidators,
+            },
+            service: {
+                domain: domain,
+                awsTags: awsTagsMap,
+            },
+            ingress: {
+                acmCertificate: awsAcmCertForIngress ? awsAcmCertForIngress.arn : undefined,
+                loadBalancerSourceRanges: clientSourcesIpv4,
+            },
+            loadTest: {
+                fullnodeGroups: aptosNodeHelmValues.fullnode ? aptosNodeHelmValues.fullnode.groups : [],
+                config: {
+                    numFullnodeGroups: numFullnodeGroups,
                 },
-                service: {
-                    domain: domain,
-                    awsTags: awsTagsMap,
-                },
-                ingress: {
-                    acmCertificate: awsAcmCertForIngress ? awsAcmCertForIngress.arn : undefined,
-                    loadBalancerSourceRanges: clientSourcesIpv4,
-                },
-                loadTest: {
-                    fullnodeGroups: notImplemented("try(var.aptos_node_helm_values.fullnode.groups,[])"),
-                    config: {
-                        numFullnodeGroups: numFullnodeGroups,
-                    },
-                },
-            }),
-            JSON.stringify(testnetAddonsHelmValues),
-        ],
-        // TODO: implement the set
+            },
+            ...testnetAddonsHelmValues,
+            chart_sha1: manageViaPulumi ? sha1sumForTestnetAddonsHelmRelease.digest('hex') : "",
+        },
     });
 
     const iamDocForForgeAssumeRole = aws.iam.getPolicyDocumentOutput({
@@ -729,30 +787,43 @@ if (enableForge) {
         assumeRolePolicy: iamDocForForgeAssumeRole.apply(forgeAssumeRole => forgeAssumeRole.json),
     });
 
-    // const forgeHelmChartPath = `${notImplemented("path.module")}/../../helm/forge`;
     const forgeHelmChartPath = std.abspath({ input: "../../helm/forge" });
+
+    const filesForForgeHelm = pulumi.all([
+        forgeHelmChartPath,
+    ]).apply(([path]) => {
+        return fs.readdirSync(path.result);
+    });
+    let sha1sumForForgeHelmRelease = crypto.createHash('sha1');
+
+    pulumi.all([
+        filesForForgeHelm,
+        forgeHelmChartPath,
+    ]).apply(([files, path]) => {
+        for (const file of files) {
+            const data = fs.readFileSync(`${path.result}/${file}`);
+            sha1sumForForgeHelmRelease.update(data);
+        }
+    });
 
     const helmReleaseForForge = new k8s.helm.v3.Release(`forge`, {
         name: "forge",
         chart: forgeHelmChartPath.then(forgeHelmChartPath => forgeHelmChartPath.result),
         maxHistory: 2,
         waitForJobs: false,
-        values: [
-            JSON.stringify({
-                forge: {
-                    image: {
-                        tag: imageTag,
-                    },
+        values: {
+            forge: {
+                image: {
+                    tag: imageTag,
                 },
-                serviceAccount: {
-                    annotations: {
-                        "eks.amazonaws.com/role-arn": iamRoleForge.arn,
-                    },
+            },
+            serviceAccount: {
+                annotations: {
+                    "eks.amazonaws.com/role-arn": iamRoleForge.arn,
                 },
-            }),
-            JSON.stringify(forgeHelmValues),
-        ],
-        // TODO: implement the set
+            },
+            chart_sha1: manageViaPulumi ? sha1sumForForgeHelmRelease.digest('hex') : "",
+        },
     });
 
     const iamDocForForgeS3StarOnForgeBucket = aws.iam.getPolicyDocumentOutput({
@@ -774,22 +845,37 @@ if (enableForge) {
 }
 
 if (enableNodeHealthChecker) {
+    const filesForNodeHealthCheckerHelm = pulumi.all([
+        nodeHealthCheckerHelmChartPath,
+    ]).apply(([path]) => {
+        return fs.readdirSync(path.result);
+    });
+    let sha1sumForNodeHealthCheckerHelmRelease = crypto.createHash('sha1');
+
+    pulumi.all([
+        filesForNodeHealthCheckerHelm,
+        nodeHealthCheckerHelmChartPath,
+    ]).apply(([files, path]) => {
+        for (const file of files) {
+            const data = fs.readFileSync(`${path.result}/${file}`);
+            sha1sumForNodeHealthCheckerHelmRelease.update(data);
+        }
+    });
+
     const helmReleaseForNodeHealthChecker = new k8s.helm.v3.Release(`node-health-checker`, {
         name: "node-health-checker",
         chart: nodeHealthCheckerHelmChartPath.then(nodeHealthCheckerHelmChartPath => nodeHealthCheckerHelmChartPath.result),
         maxHistory: 5,
         waitForJobs: false,
-        values: [
-            JSON.stringify({
-                imageTag: imageTag,
-                serviceAccount: {
-                    create: false,
-                    name: "testnet-addons",
-                },
-            }),
-            JSON.stringify(nodeHealthCheckerHelmValues),
-        ],
-        // TODO: implement the set
+        values: {
+            imageTag: imageTag,
+            serviceAccount: {
+                create: false,
+                name: "testnet-addons",
+            },
+            ...nodeHealthCheckerHelmValues,
+            chart_sha1: manageViaPulumi ? sha1sumForNodeHealthCheckerHelmRelease.digest('hex') : "",
+        },
     });
 }
 
