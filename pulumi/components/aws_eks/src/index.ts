@@ -9,6 +9,7 @@ import * as fs from "fs";
 import * as path from 'path';
 import * as yaml from "yaml";
 import * as defaults from "../../../config/defaults";
+import { computeSha1ForHelmRelease } from "../../../lib/helpers"
 
 export interface awsEksClusterArgs {
     eksClusterName: pulumi.Input<string>;
@@ -713,7 +714,7 @@ export class awsEksCluster extends pulumi.ComponentResource {
             chart: autoscalingHelmChartPath,
             maxHistory: 5,
             waitForJobs: false,
-            values: [JSON.stringify({
+            values: {
                 autoscaler: {
                     enabled: true,
                     clusterName: this.eksCluster.name,
@@ -726,8 +727,10 @@ export class awsEksCluster extends pulumi.ComponentResource {
                         },
                     },
                 },
-            })],
-            // TODO: implement set
+                chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
+                    autoscalingHelmChartPath
+                ).digest('hex') : "",
+            },
         }, {
             provider: k8sProvider,
         });
