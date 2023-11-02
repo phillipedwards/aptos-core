@@ -105,7 +105,7 @@ const fullnodeHelmChartPath = std.abspath({ input: "../../helm/fullnode" });
 const pfnAddonsHelmChartPath = std.abspath({ input: "../../helm/pfn-addons" });
 const monitoringHelmChartPath = std.abspath({ input: "../../helm/monitoring" });
 
-const gcpServiceAccountForGke = new gcp.serviceaccount.Account("gke", { accountId: `aptos-${notImplemented("terraform.workspace")}-gke` });
+const gcpServiceAccountForGke = new gcp.serviceaccount.Account("gke", { accountId: `aptos-${workspaceName}-gke` });
 
 const gcpIamMemberForGkeLogging = new gcp.projects.IAMMember("gke-logging", {
     project: project,
@@ -134,7 +134,7 @@ const gcpIamCustomRoleForK8sDebugger = new gcp.projects.IAMCustomRole("k8s-debug
 });
 const gcpOrganizationsClientConfigOutput = gcp.organizations.getClientConfigOutput({});
 const myzone = `${region}-${zone}`;
-const workspaceName = workspaceNameOverride == "" ? notImplemented("terraform.workspace") : workspaceNameOverride;
+const workspaceName = workspaceNameOverride == "" ? pulumi.getStack() : workspaceNameOverride;
 const gcpProjectServicesToEnable: gcp.projects.Service[] = [];
 for (const range of Object.entries({
     "clouderrorreporting.googleapis.com": true,
@@ -151,7 +151,7 @@ for (const range of Object.entries({
     }));
 }
 const gcpNetworkForAptos = new gcp.compute.Network("aptos", {
-    name: `aptos-${notImplemented("terraform.workspace")}`,
+    name: `aptos-${workspaceName}`,
     autoCreateSubnetworks: true,
 });
 // If the google_compute_subnetwork data source resolves immediately after the
@@ -162,15 +162,15 @@ const gcpSubnetworkOutputForAptos = gcp.compute.getSubnetworkOutput({
     name: gcpNetworkForAptos.name,
 });
 const gcpRouterForNat = new gcp.compute.Router("nat", {
-    name: `aptos-${notImplemented("terraform.workspace")}-nat`,
+    name: `aptos-${workspaceName}-nat`,
     network: gcpNetworkForAptos.id,
 });
 if (gkeEnablePrivateNodes) {
     const gcpAddressForNat = new gcp.compute.Address(
-        `nat`, { name: `aptos-${notImplemented("terraform.workspace")}-nat` }
+        `nat`, { name: `aptos-${workspaceName}-nat` }
     );
     const gcpRouterNatForNat = new gcp.compute.RouterNat(`nat`, {
-        name: `aptos-${notImplemented("terraform.workspace")}-nat`,
+        name: `aptos-${workspaceName}-nat`,
         router: gcpRouterForNat.name,
         natIpAllocateOption: "MANUAL_ONLY",
         natIps: [gcpAddressForNat.selfLink],
@@ -179,7 +179,7 @@ if (gkeEnablePrivateNodes) {
 }
 
 const aptos = new gcp.container.Cluster("aptos", {
-    name: `aptos-${notImplemented("terraform.workspace")}`,
+    name: `aptos-${workspaceName}`,
     location: myzone,
     network: gcpNetworkForAptos.id,
     removeDefaultNodePool: true,
@@ -260,7 +260,7 @@ const gcpNodePoolForFullnodes = new gcp.container.NodePool("fullnodes", {
         },
     },
 });
-const gcpServiceAccountAccountForK8sIntegration = new gcp.serviceaccount.Account("k8s-gcp-integrations", { accountId: `${notImplemented("terraform.workspace")}-pfn-gcp` });
+const gcpServiceAccountAccountForK8sIntegration = new gcp.serviceaccount.Account("k8s-gcp-integrations", { accountId: `${workspaceName}-pfn-gcp` });
 const gcpIamMemberForK8sIntegration = new gcp.projects.IAMMember("k8s-gcp-integrations-dns", {
     project: myzoneProject,
     role: "roles/dns.admin",
@@ -309,7 +309,7 @@ if (zoneName) {
             domainFilters: zoneName != "" ? [managedZoneOutputForPfn[0].dnsName] : [],
             extraArgs: [
                 `--google-project=${myzoneProject}`,
-                `--txt-owner-id=${notImplemented("terraform.workspace")}`,
+                `--txt-owner-id=${workspaceName}`,
                 "--txt-prefix=aptos",
             ],
         },
@@ -318,11 +318,11 @@ if (zoneName) {
 
 const randomIdForBackupBucket = new random.RandomId("backup-bucket", { byteLength: 4 });
 const gcpBucketForBackup = new gcp.storage.Bucket("backup", {
-    name: pulumi.interpolate`aptos-${notImplemented("terraform.workspace")}-backup-${randomIdForBackupBucket.hex}`,
+    name: pulumi.interpolate`aptos-${workspaceName}-backup-${randomIdForBackupBucket.hex}`,
     location: region,
     uniformBucketLevelAccess: true,
 });
-const gcpServiceAccountAccountForBackup = new gcp.serviceaccount.Account("backup", { accountId: `aptos-${notImplemented("terraform.workspace")}-backup` });
+const gcpServiceAccountAccountForBackup = new gcp.serviceaccount.Account("backup", { accountId: `aptos-${workspaceName}-backup` });
 const gcpBucketIamMemberForBackup = new gcp.storage.BucketIAMMember("backup", {
     bucket: gcpBucketForBackup.name,
     role: "roles/storage.objectAdmin",

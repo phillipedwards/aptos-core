@@ -130,7 +130,7 @@ const forgeHelmChartPath = std.abspath({ input: "../../helm/forge" });
 const chaosMeshHelmChartPath = std.abspath({ input: "../../helm/chaos" });
 const testnetAddonsHelmChartPath = std.abspath({ input: "../../helm/testnet-addons" });
 
-const workspaceName = workspaceNameOverride != "" ? workspaceNameOverride : notImplemented("terraform.workspace");
+const workspaceName = workspaceNameOverride != "" ? workspaceNameOverride : pulumi.getStack();
 const mychainName = chainName != "" ? chainName : pulumi.interpolate`${workspaceName}net`;
 const mychainId = enableForge ? "4" : chainId;
 const myzoneProject = zoneProject != "" ? zoneProject : project;
