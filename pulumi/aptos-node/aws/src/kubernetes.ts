@@ -4,6 +4,7 @@ import * as k8s from "@pulumi/kubernetes";
 import * as aws from "@pulumi/aws";
 import * as k8sClientLib from '@kubernetes/client-node';
 import { awsProvider } from './aws'
+import { getK8sProviderFromEksCluster } from "../../../lib/awsEksKubeConfig"
 
 export interface KubernetesConfig {
     aptosNodeHelmChartPath?: pulumi.Input<string>;
@@ -86,90 +87,13 @@ export class Kubernetes extends pulumi.ComponentResource {
         if (!args.enableValidator) { args.enableValidator = false }
         if (!args.tags) { args.tags = {} }
 
-        const kubeconfig = pulumi.all([
-            args.eksCluster.name,
-            args.eksCluster.endpoint,
-            args.eksCluster.certificateAuthority.data,
-            args.region,
-            accountId,
-        ]).apply(([name, endpoint, caData, region, accountId]) => {
-            const context = `arn:aws:eks:${region}:${accountId}:cluster/${name}`;
-            const kubeconfigBuilder = new k8sClientLib.KubeConfig();
-            kubeconfigBuilder.loadFromOptions({
-                clusters: [
-                    {
-                        name: context,
-                        server: endpoint,
-                        caData: caData,
-                    },
-                ],
-                contexts: [
-                    {
-                        name: context,
-                        cluster: context,
-                        user: context,
-                    },
-                ],
-                currentContext: context,
-                users: [
-                    {
-                        name: context,
-                        authProvider: undefined,
-                        exec: {
-                            apiVersion: "client.authentication.k8s.io/v1beta1",
-                            command: "aws",
-                            installHint: "Install the aws cli",
-                            args: [
-                                "--region",
-                                region,
-                                "eks",
-                                "get-token",
-                                "--cluster-name",
-                                name,
-                            ],
-                        },
-                    },
-                ],
-            });
-            return kubeconfigBuilder;
-        });
-
-        this.provider = new k8s.Provider(`k8s`, {
-            kubeconfig: kubeconfig.apply(kubeconfig => kubeconfig.exportConfig()),
+        this.provider = getK8sProviderFromEksCluster({
+            eksCluster: args.eksCluster,
+            region: args.region,
+            accountId: accountId,
         }, {
             parent: this
         });
-
-        // const kubeconfig = new k8sClientLib.KubeConfig();
-        // kubeconfig.loadFromOptions({
-        //     clusters: [
-        //         {
-        //             name: String(args.eksCluster.name),
-        //             server: String(args.eksCluster.endpoint),
-        //             caData: String(args.eksCluster.certificateAuthority.data),
-        //         },
-        //     ],
-        //     contexts: [
-        //         {
-        //             name: String(args.eksCluster.name),
-        //             cluster: String(args.eksCluster.name),
-        //             user: String(args.eksCluster.name),
-        //         },
-        //     ],
-        //     currentContext: String(args.eksCluster.name),
-        //     users: [
-        //         {
-        //             name: String(args.eksCluster.name),
-        //             token: String(args.eksCluster.identities.apply(identities => identities[0].oidcs?.[0]?.issuer)).split("id/")[1],
-        //             authProvider: undefined,
-        //             exec: undefined,
-        //         },
-        //     ],
-        // })
-
-        // this.provider = new k8s.Provider(`k8s`, {
-        //     kubeconfig: kubeconfig.exportConfig(),
-        // }, { parent: this });
 
         const provider = this.provider;
 
