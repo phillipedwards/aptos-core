@@ -7,6 +7,7 @@ import { awsEksCluster } from "../../../components/aws_eks/src/index";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import { map } from "@pulumi/std/map";
+import { computeSha1ForHelmRelease } from "../../../lib/helpers"
 
 function notImplemented(message: string) {
     throw new Error(message);
@@ -42,9 +43,9 @@ const chainName: pulumi.Input<string> = config.get("chainName") || "devnet";
 // Name of the fullnode node owner
 const fullnodeName: pulumi.Input<string> = config.require("fullnodeName");
 // Map of values to pass to pfn-addons Helm
-const pfnHelmValues = config.getObject("pfnHelmValues") || {};
+const pfnHelmValues: pulumi.Input<object> = config.getObject("pfnHelmValues") || {};
 // Map of values to pass to public fullnode Helm
-const fullnodeHelmValues = config.getObject("fullnodeHelmValues") || {};
+const fullnodeHelmValues: pulumi.Input<object> = config.getObject("fullnodeHelmValues") || {};
 // List of values to pass to public fullnode, for setting different value per node. length(fullnode_helm_values_list) must equal var.num_fullnodes
 const fullnodeHelmValuesList: pulumi.Input<object>[] = config.getObject<pulumi.Input<object>[]>("fullnodeHelmValuesList") || [{}];
 // Route53 Zone ID to create records in
@@ -58,7 +59,7 @@ const dnsPrefixName: pulumi.Input<string> = config.get("dnsPrefixName") || "full
 // Enable separate public fullnode logger pod
 const enablePfnLogger: pulumi.Input<boolean> = config.getBoolean("enablePfnLogger") || false;
 // Map of values to pass to public fullnode logger Helm
-const pfnLoggerHelmValues = config.getObject("pfnLoggerHelmValues") || {};
+const pfnLoggerHelmValues: pulumi.Input<object> = config.getObject("pfnLoggerHelmValues") || {};
 // Instance type used for utilities
 const utilityInstanceType: pulumi.Input<string> = config.get("utilityInstanceType") || "t3.medium";
 // Instance type used for validator and fullnodes
@@ -76,7 +77,7 @@ const fullnodeStorageClass: pulumi.Input<string> = config.get("fullnodeStorageCl
 // Enable monitoring helm chart
 const enableMonitoring: pulumi.Input<boolean> = config.getBoolean("enableMonitoring") || false;
 // Map of values to pass to monitoring Helm
-const monitoringHelmValues = config.getObject("monitoringHelmValues") || {};
+const monitoringHelmValues: pulumi.Input<object> = config.getObject("monitoringHelmValues") || {};
 // Enable prometheus-node-exporter within monitoring helm chart
 const enablePrometheusNodeExporter: pulumi.Input<boolean> = config.getBoolean("enablePrometheusNodeExporter") || false;
 // Enable kube-state-metrics within monitoring helm chart
@@ -516,36 +517,25 @@ const helmReleaseForPfnAddons = new k8s.helm.v3.Release("pfn-addons", {
     chart: helmChartPathForPfnAddons.then(path => path.result),
     maxHistory: 10,
     waitForJobs: false,
-    values: [
-        JSON.stringify({
-            service: {
-                domain: domain,
-                awsTags: awsTagsMap,
-                fullnode: {
-                    numFullnodes: numFullnodes,
-                    loadBalancerSourceRanges: clientSourcesIpv4,
-                },
-            },
-            ingress: {
-                "class": "alb",
-                acmCertificate: acmCertForIngress ? acmCertForIngress.arn : undefined,
+    values: {
+        service: {
+            domain: domain,
+            awsTags: awsTagsMap,
+            fullnode: {
+                numFullnodes: numFullnodes,
                 loadBalancerSourceRanges: clientSourcesIpv4,
             },
-        }),
-        JSON.stringify(pfnHelmValues),
-    ],
-    // TODO: Implement set
-    // set: [{
-    //     name: "chart_sha1",
-    //     value: std.sha1Output({
-    //         input: std.joinOutput({
-    //             separator: "",
-    //             input: .map(f => (std.filesha1Output({
-    //                 input: `${helmChartPathForPfnAddons}/${f}`,
-    //             }).result)),
-    //         }).result,
-    //     }).result,
-    // }],
+        },
+        ingress: {
+            "class": "alb",
+            acmCertificate: acmCertForIngress ? acmCertForIngress.arn : undefined,
+            loadBalancerSourceRanges: clientSourcesIpv4,
+        },
+        ...pfnHelmValues,
+        chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
+            helmChartPathForPfnAddons
+        ).digest('hex') : "",
+    },
 });
 const helmReleaseForFullnode: k8s.helm.v3.Release[] = [];
 for (const range = { value: 0 }; range.value < numFullnodes; range.value++) {
@@ -554,104 +544,82 @@ for (const range = { value: 0 }; range.value < numFullnodes; range.value++) {
         chart: helmChartPathForFullnode.then(path => path.result),
         maxHistory: 10,
         waitForJobs: false,
-        values: [
-            JSON.stringify({
-                imageTag: finalImageTag,
-                manageImages: manageViaPulumi,
-                chain: {
-                    era: era,
-                    name: chainName,
+        values: {
+            imageTag: finalImageTag,
+            manageImages: manageViaPulumi,
+            chain: {
+                era: era,
+                name: chainName,
+            },
+            image: {
+                tag: finalImageTag,
+            },
+            logging: {
+                address: enablePfnLogger ? "fullnode-pfn-aptos-logger:5044" : "",
+            },
+            nodeSelector: {
+                "eks.amazonaws.com/nodegroup": "fullnode",
+            },
+            storage: {
+                "class": fullnodeStorageClass,
+            },
+            service: {
+                type: "LoadBalancer",
+                annotations: {
+                    "service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
+                    "external-dns.alpha.kubernetes.io/hostname": `pfn${range.value}.${domain}`,
+                    "alb.ingress.kubernetes.io/healthcheck-path": "/v1/-/healthy",
                 },
-                image: {
-                    tag: finalImageTag,
-                },
-                logging: {
-                    address: enablePfnLogger ? "fullnode-pfn-aptos-logger:5044" : "",
-                },
-                nodeSelector: {
-                    "eks.amazonaws.com/nodegroup": "fullnode",
-                },
-                storage: {
-                    "class": fullnodeStorageClass,
-                },
-                service: {
-                    type: "LoadBalancer",
-                    annotations: {
-                        "service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
-                        "external-dns.alpha.kubernetes.io/hostname": `pfn${range.value}.${domain}`,
-                        "alb.ingress.kubernetes.io/healthcheck-path": "/v1/-/healthy",
+            },
+            backup: {
+                enable: range.value == backupFullnodeIndex ? enableBackup : false,
+                config: {
+                    location: "s3",
+                    s3: {
+                        bucket: awsS3BucketForBackup.bucket,
                     },
                 },
-                backup: {
-                    enable: range.value == backupFullnodeIndex ? enableBackup : false,
-                    config: {
-                        location: "s3",
-                        s3: {
-                            bucket: awsS3BucketForBackup.bucket,
-                        },
+            },
+            restore: {
+                config: {
+                    location: "s3",
+                    s3: {
+                        bucket: awsS3BucketForBackup.bucket,
                     },
                 },
-                restore: {
-                    config: {
-                        location: "s3",
-                        s3: {
-                            bucket: awsS3BucketForBackup.bucket,
-                        },
-                    },
+            },
+            serviceAccount: {
+                annotations: {
+                    "eks.amazonaws.com/role-arn": iamRoleForBackup.arn,
                 },
-                serviceAccount: {
-                    annotations: {
-                        "eks.amazonaws.com/role-arn": iamRoleForBackup.arn,
-                    },
-                },
-            }),
-            JSON.stringify(fullnodeHelmValues),
-            JSON.stringify(fullnodeHelmValuesList.length === 0 ? {} : fullnodeHelmValuesList[range.value]),
-        ],
-        // TODO: Implement set
-        // set: Object.entries(manageViaPulumi ? notImplemented("toset([\"\"])") : notImplemented("toset([])")).map(([k, v]) => ({ key: k, value: v })).map(entry => ({
-        //     name: "chart_sha1",
-        //     value: std.sha1Output({
-        //         input: std.joinOutput({
-        //             separator: "",
-        //             input: .map(f => (std.filesha1Output({
-        //                 input: `${helmChartPathForFullnode}/${f}`,
-        //             }).result)),
-        //         }).result,
-        //     }).result,
-        // })),
+            },
+            ...fullnodeHelmValues,
+            ...fullnodeHelmValuesList.length === 0 ? {} : fullnodeHelmValuesList[range.value],
+            chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
+                helmChartPathForFullnode
+            ).digest('hex') : "",
+        },
     }));
 }
-const helmReleaseForPfnLogger: k8s.helm.v3.Release[] = [];
+
 if (enablePfnLogger) {
     const helmReleaseForPfnLogger = new k8s.helm.v3.Release(`pfn-logger`, {
         name: "pfn-logger",
         chart: helmChartPathForPfnLogger.then(path => path.result),
         maxHistory: 10,
         waitForJobs: false,
-        values: [
-            JSON.stringify({
-                logger: {
-                    name: "pfn",
-                },
-                chain: {
-                    name: `aptos-${workspaceName}`,
-                },
-            }),
-            JSON.stringify(pfnLoggerHelmValues),
-        ],
-        // TODO: Implement set
-        // set: [{
-        //     name: "chart_sha1",
-        //     value: std.sha1Output({
-        //         input: std.joinOutput({
-        //             separator: "",
-        //             input: .map(f => (std.filesha1Output({
-        //                 input: `${helmChartPathForPfnLogger}/${f}`,
-        //             }).result)),
-        //         }).result,
-        //     }).result,
-        // }],
+        values: {
+            logger: {
+                name: "pfn",
+            },
+            chain: {
+                name: `aptos-${workspaceName}`,
+            },
+            ...pfnLoggerHelmValues,
+            chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
+                helmChartPathForPfnLogger
+            ).digest('hex') : "",
+        },
     });
 }
 
@@ -661,45 +629,34 @@ if (enableMonitoring) {
         chart: helmChartPathForMonitoring.then(path => path.result),
         maxHistory: 5,
         waitForJobs: false,
-        values: [
-            JSON.stringify({
-                chain: {
-                    name: chainName,
-                },
-                fullnode: {
-                    name: fullnodeName,
-                },
-                service: {
-                    domain: domain,
-                },
-                "kube-state-metrics": {
-                    enabled: enableKubeStateMetrics,
-                },
-                "prometheus-node-exporter": {
-                    enabled: enablePrometheusNodeExporter,
-                },
-                monitoring: {
-                    prometheus: {
-                        storage: {
-                            "class": "gp3",
-                        },
+        values: {
+            chain: {
+                name: chainName,
+            },
+            fullnode: {
+                name: fullnodeName,
+            },
+            service: {
+                domain: domain,
+            },
+            "kube-state-metrics": {
+                enabled: enableKubeStateMetrics,
+            },
+            "prometheus-node-exporter": {
+                enabled: enablePrometheusNodeExporter,
+            },
+            monitoring: {
+                prometheus: {
+                    storage: {
+                        "class": "gp3",
                     },
                 },
-            }),
-            JSON.stringify(monitoringHelmValues),
-        ],
-        // TODO: Implement set
-        // set: [{
-        //     name: "chart_sha1",
-        //     value: std.sha1Output({
-        //         input: std.joinOutput({
-        //             separator: "",
-        //             input: .map(f => (std.filesha1Output({
-        //                 input: `${helmChartPathForMonitoring}/${f}`,
-        //             }).result)),
-        //         }).result,
-        //     }).result,
-        // }],
+            },
+            ...monitoringHelmValues,
+            chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
+                helmChartPathForMonitoring
+            ).digest('hex') : "",
+        },
     });
 }
 
