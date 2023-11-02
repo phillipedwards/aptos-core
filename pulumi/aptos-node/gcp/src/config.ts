@@ -6,7 +6,6 @@ export interface helmConfig {
     valuesFilePath: pulumi.Input<string>;
     values: pulumi.Input<any>;
     version: pulumi.Input<string>;
-    manageViaPulumi: pulumi.Input<boolean>;
     releaseNameOverride?: string;
 }
 
@@ -18,7 +17,6 @@ const validatorDefaultHelmConfig: Partial<helmConfig> = {
     valuesFilePath: "",
     values: {},
     version: "1.0.0",
-    manageViaPulumi: true,
     releaseNameOverride: "",
 };
 
@@ -28,7 +26,6 @@ const monitoringDefaultHelmConfig: Partial<helmConfig> = {
     valuesFilePath: "",
     values: {},
     version: "1.0.0",
-    manageViaPulumi: true,
     releaseNameOverride: "",
 };
 
@@ -38,7 +35,6 @@ const loggerDefaultHelmConfig: Partial<helmConfig> = {
     valuesFilePath: "",
     values: {},
     version: "1.0.0",
-    manageViaPulumi: true,
     releaseNameOverride: "",
 };
 
@@ -135,6 +131,7 @@ export const autoprovisioningConfig = {
     ...new pulumi.Config("aptos").getObject("autoprovisioningConfig") as autoprovisioningConfig,
 };
 export const validatorName = new pulumi.Config("aptos").require("validatorName");
+export const manageViaPulumi: pulumi.Input<boolean> = new pulumi.Config("").getBoolean("manageViaPulumi") || true;
 
 // Feature Flags
 export const enableMonitoring = new pulumi.Config("featureFlags").getBoolean("enableMonitoring") || false;
