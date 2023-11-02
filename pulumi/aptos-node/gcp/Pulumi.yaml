@@ -1,7 +1,11 @@
 name: aptos-node
 description: TODO
-runtime: 
+runtime:
   name: nodejs
-main: ./src/
+  options:
+    typescript: true
+main: ./src
 config:
-  
+  pulumi:disable-default-providers:
+    - gcp
+    - kubernetes
