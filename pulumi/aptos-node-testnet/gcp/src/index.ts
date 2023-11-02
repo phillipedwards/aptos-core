@@ -6,6 +6,7 @@ import { AptosNodeGCP } from "../../../aptos-node/gcp/src/aptosNodeGCP";
 // import * as transformations from './transformation';
 import * as crypto from "crypto";
 import * as fs from "fs";
+import { computeSha1ForHelmRelease } from "../../../lib/helpers"
 
 type AptosNodeHelmValues = {
     fullnode?: {
@@ -15,23 +16,6 @@ type AptosNodeHelmValues = {
 
 function notImplemented(message: string) {
     throw new Error(message);
-}
-
-function computeSha1ForHelmRelease(chartPathOutput: Promise<std.AbspathResult>): crypto.Hash {
-    const filesOutput = pulumi.all([chartPathOutput]).apply(([path]) => {
-        return fs.readdirSync(path.result);
-    });
-
-    let sha1sumForHelmRelease = crypto.createHash('sha1');
-
-    pulumi.all([filesOutput, chartPathOutput]).apply(([files, path]) => {
-        for (const f of files) {
-            const data = fs.readFileSync(`${path}/${f}`);
-            sha1sumForHelmRelease.update(data);
-        }
-    });
-
-    return sha1sumForHelmRelease;
 }
 
 const privilegedPssLabels = {
