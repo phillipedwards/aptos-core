@@ -7,29 +7,13 @@ import { AptosNodeAWS } from "../../../aptos-node/aws/src/aptosNodeAWS";
 import * as transformations from './transformation';
 import * as crypto from "crypto";
 import * as fs from "fs";
+import { computeSha1ForHelmRelease } from "../../../lib/helpers"
 
 type AptosNodeHelmValues = {
     fullnode?: {
         groups?: string[],
     },
 };
-
-function computeSha1ForHelmRelease(chartPathOutput: Promise<std.AbspathResult>): crypto.Hash {
-    const filesOutput = pulumi.all([chartPathOutput]).apply(([path]) => {
-        return fs.readdirSync(path.result);
-    });
-
-    let sha1sumForHelmRelease = crypto.createHash('sha1');
-
-    pulumi.all([filesOutput, chartPathOutput]).apply(([files, path]) => {
-        for (const f of files) {
-            const data = fs.readFileSync(`${path}/${f}`);
-            sha1sumForHelmRelease.update(data);
-        }
-    });
-
-    return sha1sumForHelmRelease;
-}
 
 // Register the alias transformation on the stack to import from `pulumi import from...`
 pulumi.log.info(`Registering aliasTransformation transformation`);
@@ -479,11 +463,6 @@ const albIngressResource = new aws.iam.RolePolicy("albIngress", {
     role: k8sAwsIntegrationsResource.name,
     policy: albIngress.apply(albIngress => albIngress.json),
 });
-
-
-
-
-
 
 const clusterAutoscalerAssumeRole = aws.iam.getPolicyDocumentOutput({
     statements: [{
