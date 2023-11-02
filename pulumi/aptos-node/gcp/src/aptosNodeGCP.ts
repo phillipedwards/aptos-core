@@ -246,6 +246,7 @@ export class AptosNodeGCP extends pulumi.ComponentResource {
             enableNodeExporter: config.enableNodeExporter,
             cluster: this.cluster.cluster,
             utilityNodePool: this.cluster.utilitiesNodePool,
+            manageViaPulumi: config.manageViaPulumi,
             workspace: workspace,
         }, {
             dependsOn: [
