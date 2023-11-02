@@ -8,6 +8,7 @@ import * as crypto from "crypto";
 import * as fs from "fs";
 import { map } from "@pulumi/std/map";
 import { computeSha1ForHelmRelease } from "../../../lib/helpers"
+import { getK8sProviderFromEksCluster } from "../../../lib/awsEksKubeConfig"
 
 function notImplemented(message: string) {
     throw new Error(message);
@@ -155,6 +156,13 @@ const eksCluster = new awsEksCluster("eks", {
 // const aptosData = aws.eks.getClusterAuthOutput({
 //     name: aptos.apply(aptos => eksCluster.eksCluster.name),
 // });
+
+const k8sProvider = getK8sProviderFromEksCluster({
+    eksCluster: eksCluster.eksCluster,
+    region: "us-west-2",
+    accountId: currentAwsAccountId,
+});
+
 const iamDocForExternalDns = aws.iam.getPolicyDocumentOutput({
     statements: [
         {
