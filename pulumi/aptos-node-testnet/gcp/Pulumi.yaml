@@ -7,5 +7,5 @@ runtime:
 main: ./src
 config:
   pulumi:disable-default-providers:
-    - aws
+    - gcp
     - kubernetes
