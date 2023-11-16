@@ -21,18 +21,17 @@ export class Auth extends pulumi.ComponentResource {
         this.clusterRole = new aws.iam.Role(`cluster`, {
             name: `aptos-${args.workspaceName}-cluster`,
             path: args.iamPath,
-            assumeRolePolicy: JSON.stringify({
-                Version: "2012-10-17",
-                Statement: [
-                    {
-                        Action: "sts:AssumeRole",
-                        Effect: "Allow",
-                        Principal: {
-                            Service: "ec2.amazonaws.com"
-                        },
-                    }
-                ]
-            }),
+            assumeRolePolicy: aws.iam.getPolicyDocument({
+                version: "2012-10-17",
+                statements: [{
+                    actions: ["sts:AssumeRole"],
+                    effect: "Allow",
+                    principals: [{
+                        type: "Service",
+                        identifiers: ["eks.amazonaws.com"],
+                    }],
+                }],
+            }).then(v => v.json),
             managedPolicyArns: [
                 "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
                 "arn:aws:iam::aws:policy/AmazonEKSServicePolicy",
@@ -43,18 +42,17 @@ export class Auth extends pulumi.ComponentResource {
         this.nodesRole = new aws.iam.Role(`nodes`, {
             name: `aptos-${args.workspaceName}-nodes`,
             path: args.iamPath,
-            assumeRolePolicy: JSON.stringify({
-                Version: "2012-10-17",
-                Statement: [
-                    {
-                        Action: "sts:AssumeRole",
-                        Principal: {
-                            Service: "ec2.amazonaws.com"
-                        },
-                        Effect: "Allow",
-                    }
-                ]
-            }),
+            assumeRolePolicy: aws.iam.getPolicyDocument({
+                version: "2012-10-17",
+                statements: [{
+                    actions: ["sts:AssumeRole"],
+                    effect: "Allow",
+                    principals: [{
+                        type: "Service",
+                        identifiers: ["ec2.amazonaws.com"],
+                    }],
+                }],
+            }).then(v => v.json),
             managedPolicyArns: [
                 "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
                 "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",

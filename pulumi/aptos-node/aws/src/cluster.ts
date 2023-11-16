@@ -1,6 +1,5 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
-import { awsProvider } from './aws';
 
 export interface NodePoolConfig {
     instanceType: pulumi.Input<string>;
@@ -137,7 +136,7 @@ export class Cluster extends pulumi.ComponentResource {
     constructor(name: string, args: ClusterArgs, opts: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:Cluster", name, {}, opts);
 
-        const accountId = aws.getCallerIdentity({ provider: awsProvider }).then(it => it.accountId);
+        const accountId = aws.getCallerIdentity({}).then(it => it.accountId);
         const clusterName = `aptos-${args.workspaceName}`;
         if (!args.kubernetesVersion) { args.kubernetesVersion = "1.24" }
 
@@ -177,30 +176,31 @@ export class Cluster extends pulumi.ComponentResource {
 
         const oidcProvider = this.openidConnectProvider.url.apply(url => url.replace("https://", ""));
 
-        const awsEbsCsiDriverTrustPolicy = {
-            description: "Trust policy for AWS EBS CSI driver",
-            policy: pulumi.output(aws.getCallerIdentity({ provider: awsProvider })).apply(callerIdentity => JSON.stringify({
-                Version: "2012-10-17",
-                Statement: [{
-                    Action: "sts:AssumeRoleWithWebIdentity",
-                    Effect: "Allow",
-                    Principal: {
-                        Federated: pulumi.interpolate`arn:aws:iam::${callerIdentity.accountId}:oidc-provider/${oidcProvider}`,
-                    },
-                    Condition: {
-                        "StringEquals": {
-                            "sub": "system:serviceaccount:kube-system:ebs-csi-controller-sa",
-                            "sud": "sts.amazonaws.com",
-                        },
-                    },
+        const awsEbsCsiDriverTrustPolicy = aws.iam.getPolicyDocumentOutput({
+            statements: [{
+                effect: "Allow",
+                actions: ["sts:AssumeRoleWithWebIdentity"],
+                principals: [{
+                    type: "Federated",
+                    identifiers: [pulumi.interpolate`arn:aws:iam::${accountId}:oidc-provider/${oidcProvider}`],
                 }],
-            })),
-        };
+                conditions: [{
+                    test: "StringEquals",
+                    variable: pulumi.interpolate`${oidcProvider}:sub`,
+                    values: ["system:serviceaccount:kube-system:ebs-csi-controller-sa"],
+                }, {
+                    test: "StringEquals",
+                    variable: pulumi.interpolate`${oidcProvider}:aud`,
+                    values: ["sts.amazonaws.com"],
+                }],
+            },]
+
+        }, { parent: this });
 
         this.ebsDriverRole = new aws.iam.Role(`aws-ebs-csi-driver`, {
             name: 'aptos-default-ebs-csi-controller',
             path: '/',
-            assumeRolePolicy: JSON.stringify(awsEbsCsiDriverTrustPolicy),
+            assumeRolePolicy: awsEbsCsiDriverTrustPolicy.apply(trustPolicy => trustPolicy.json),
             managedPolicyArns: [
                 "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy",
             ]
@@ -256,8 +256,15 @@ export class Cluster extends pulumi.ComponentResource {
         this.eksAddon = new aws.eks.Addon(`aws-ebs-csi-driver`, {
             addonName: 'aws-ebs-csi-driver',
             clusterName: clusterName,
-            serviceAccountRoleArn: this.ebsDriverRole.arn
-        }, { parent: this });
+            serviceAccountRoleArn: this.ebsDriverRole.arn,
+        }, {
+            parent: this,
+            // aliases: [{
+            //     type: "urn:pulumi:stack::aws:eks:addon:Addon::aws-ebs-csi-driver",
+            //     name: "aws-ebs-csi-driver",
+            //     parent: pulumi.rootStackResource
+            // }],
+        });
 
         // Create the CloudWatch log group for the EKS cluster
         this.cloudwatchLogGroup = new aws.cloudwatch.LogGroup(`eks`, {

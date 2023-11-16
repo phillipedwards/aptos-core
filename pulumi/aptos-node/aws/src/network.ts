@@ -141,10 +141,6 @@ export class Network extends pulumi.ComponentResource {
 
         this.privateRouteTable = new aws.ec2.RouteTable(`private`, {
             vpcId: this.vpc.id,
-            routes: [{
-                cidrBlock: "0.0.0.0/0",
-                natGatewayId: this.natGateway.id,
-            }],
         }, { parent: this.vpc });
 
         if (numAzs > 0) {

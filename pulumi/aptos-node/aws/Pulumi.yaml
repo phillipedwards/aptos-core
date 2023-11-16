@@ -6,9 +6,9 @@ runtime:
     typescript: true
 main: ./src
 config:
-  pulumi:disable-default-providers:
-    - aws
-    - kubernetes
+  # pulumi:disable-default-providers:
+  #   - aws
+  #   - kubernetes
   # aws:region:
   #   value: "TODO: var.region"
   # kubernetes:clusterCaCertificate:

@@ -2,16 +2,16 @@ import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import { awsProvider } from './aws'
 
-export const setAWSProviderOnEachAWSResource: pulumi.ResourceTransformation = (args) => {
-    args.opts.provider = args.opts.provider || undefined;
-    if (args.type.startsWith("aws:")) {
-        args.opts.provider = awsProvider;
-    }
-    return {
-        props: args.props,
-        opts: args.opts,
-    };
-};
+// export const setAWSProviderOnEachAWSResource: pulumi.ResourceTransformation = (args) => {
+//     args.opts.provider = args.opts.provider || undefined;
+//     if (args.type.startsWith("aws:")) {
+//         args.opts.provider = awsProvider;
+//     }
+//     return {
+//         props: args.props,
+//         opts: args.opts,
+//     };
+// };
 
 // export const isTaggableAWS: pulumi.ResourceTransformation = (args) => {
 //     // if (args.type.startsWith("aws:") && args.props.hasOwnProperty("tags")) {
@@ -38,71 +38,71 @@ export const setAWSProviderOnEachAWSResource: pulumi.ResourceTransformation = (a
 //     };
 // };
 
-export const aliasTransformation: pulumi.ResourceTransformation = (args) => {
-    args.opts.aliases = args.opts.aliases || []
-    args.opts.aliases.push(
-        {
-            type: args.type,
-            name: args.name,
-            parent: pulumi.rootStackResource
-        },
-        {
-            type: args.type,
-            name: pulumi.interpolate`${args.name}_0`,
-            parent: pulumi.rootStackResource
-        },
-        {
-            type: args.type,
-            name: pulumi.interpolate`${args.name}_1`,
-            parent: pulumi.rootStackResource
-        },
-        {
-            type: args.type,
-            name: pulumi.interpolate`${args.name}_2`,
-            parent: pulumi.rootStackResource
-        },
-        {
-            type: args.type,
-            name: pulumi.interpolate`${args.name}_3`,
-            parent: pulumi.rootStackResource
-        },
-        {
-            type: args.type,
-            name: pulumi.interpolate`${args.name}_4`,
-            parent: pulumi.rootStackResource
-        },
-        {
-            type: args.type,
-            name: pulumi.interpolate`${args.name}-0`,
-            parent: pulumi.rootStackResource
-        },
-        {
-            type: args.type,
-            name: pulumi.interpolate`${args.name}-1`,
-            parent: pulumi.rootStackResource
-        },
-        {
-            type: args.type,
-            name: pulumi.interpolate`${args.name}-2`,
-            parent: pulumi.rootStackResource
-        },
-        {
-            type: args.type,
-            name: pulumi.interpolate`${args.name}-3`,
-            parent: pulumi.rootStackResource
-        },
-        {
-            type: args.type,
-            name: pulumi.interpolate`${args.name}-4`,
-            parent: pulumi.rootStackResource
-        },
-    )
+// export const aliasTransformation: pulumi.ResourceTransformation = (args) => {
+//     args.opts.aliases = args.opts.aliases || []
+//     args.opts.aliases.push(
+//         {
+//             type: args.type,
+//             name: args.name,
+//             parent: pulumi.rootStackResource
+//         },
+//         {
+//             type: args.type,
+//             name: pulumi.interpolate`${args.name}_0`,
+//             parent: pulumi.rootStackResource
+//         },
+//         {
+//             type: args.type,
+//             name: pulumi.interpolate`${args.name}_1`,
+//             parent: pulumi.rootStackResource
+//         },
+//         {
+//             type: args.type,
+//             name: pulumi.interpolate`${args.name}_2`,
+//             parent: pulumi.rootStackResource
+//         },
+//         {
+//             type: args.type,
+//             name: pulumi.interpolate`${args.name}_3`,
+//             parent: pulumi.rootStackResource
+//         },
+//         {
+//             type: args.type,
+//             name: pulumi.interpolate`${args.name}_4`,
+//             parent: pulumi.rootStackResource
+//         },
+//         {
+//             type: args.type,
+//             name: pulumi.interpolate`${args.name}-0`,
+//             parent: pulumi.rootStackResource
+//         },
+//         {
+//             type: args.type,
+//             name: pulumi.interpolate`${args.name}-1`,
+//             parent: pulumi.rootStackResource
+//         },
+//         {
+//             type: args.type,
+//             name: pulumi.interpolate`${args.name}-2`,
+//             parent: pulumi.rootStackResource
+//         },
+//         {
+//             type: args.type,
+//             name: pulumi.interpolate`${args.name}-3`,
+//             parent: pulumi.rootStackResource
+//         },
+//         {
+//             type: args.type,
+//             name: pulumi.interpolate`${args.name}-4`,
+//             parent: pulumi.rootStackResource
+//         },
+//     )
 
-    return {
-        props: args.props,
-        opts: args.opts,
-    };
-};
+//     return {
+//         props: args.props,
+//         opts: args.opts,
+//     };
+// };
 
 export const addImports: pulumi.ResourceTransformation = (args) => {
     const { type, name } = args;

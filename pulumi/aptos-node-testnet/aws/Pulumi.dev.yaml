@@ -1,0 +1,31 @@
+config:
+  aptos:validatorName: validator
+  aptos:azs:
+    - "us-west-2a"
+    - "us-west-2b"
+    - "us-west-2c"
+  aptos:enable_kube_state_metrics: "false"
+  aptos:enable_monitoring: "false"
+  aptos:enable_node_health_checker: "false"
+  aptos:enable_prometheus_node_exporter: "false"
+  aptos:fullnode_storage_class: "gp3"
+  aptos:manage_via_pulumi: "true"
+  aptos:utility_instance_type: "t3.large"
+  aptos:validator_instance_type: "t3.large"
+  aptos:validator_storage_class: "gp3"
+  aptos:zoneId: Z06658773W0CXPGF3EK8K
+  aptos:workspace_name_override: "default"
+  aws:profile: ce_admin
+  aws:region: us-west-2
+# region = "us-west-2"
+# zone_id =
+# workspace_name_override = "default"
+# enable_monitoring = false
+# enable_prometheus_node_exporter = false
+# enable_kube_state_metrics = false
+# enable_node_health_checker = false
+# utility_instance_type = "t3.large"
+# validator_instance_type = "t3.large"
+# validator_storage_class = "gp3"
+# fullnode_storage_class = "gp3"
+# manage_via_pulumi = true
