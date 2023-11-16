@@ -141,52 +141,48 @@ const nodeHealthCheckerHelmChartPath = std.abspath({ input: "../../../../helm/no
 const forgeHelmChartPath = std.abspath({ input: "../../../../helm/forge" });
 
 // DNS
-// if (zoneId) {
-//     route53Zone = aws.route53.getZoneOutput({ zoneId }, { provider: awsconfig.awsProvider });
+if (zoneId) {
+    route53Zone = aws.route53.getZoneOutput({ zoneId }, { provider: awsconfig.awsProvider });
 
-//     domain = pulumi.interpolate`${dnsPrefix}${route53Zone.name}`;
+    domain = pulumi.interpolate`${dnsPrefix}${route53Zone.name}`;
 
-//     awsAcmCertForIngress = new aws.acm.Certificate(`ingress`, {
-//         domainName: domain,
-//         subjectAlternativeNames: std.concatOutput({
-//             input: [
-//                 [`${domain}`],
-//                 tlsSans,
-//             ],
-//         }).apply(invoke => invoke.result),
-//         validationMethod: "DNS",
-//         tags: {
-//             terraform: "testnet",
-//             workspace: workspaceName,
-//         },
-//     });
+    awsAcmCertForIngress = new aws.acm.Certificate(`ingress`, {
+        domainName: domain,
+        subjectAlternativeNames: [
+            ...tlsSans,
+            domain,
+        ],
+        validationMethod: "DNS",
+        tags: {
+            terraform: "testnet",
+            workspace: workspaceName,
+        },
+    });
 
-//     const acmValidationRecordsForIngress = awsAcmCertForIngress.domainValidationOptions.apply(domainValidationOptions => {
-//         return domainValidationOptions.reduce((__obj, dvo) => ({ ...__obj, [dvo.domainName]: dvo }));
-//     }).apply(rangeBody => {
+    const acmValidationRecordsForIngress = awsAcmCertForIngress.domainValidationOptions.apply(domainValidationOptions => {
+        return domainValidationOptions.reduce((__obj, dvo) => ({ ...__obj, [dvo.domainName]: dvo }));
+    }).apply(rangeBody => {
 
-//         const ingressAcmValidationRecords = [];
+        const ingressAcmValidationRecords = [];
 
-//         for (const range of Object.entries(rangeBody).map(([k, v]) => ({ key: k, value: v }))) {
-//             ingressAcmValidationRecords.push(new aws.route53.Record(`ingress-acm-validation-${range.key}`, {
-//                 zoneId,
-//                 allowOverwrite: true,
-//                 name: range.value.resourceRecordName,
-//                 type: range.value.resourceRecordType,
-//                 records: [range.value.resourceRecordValue],
-//                 ttl: 60,
-//             }));
-//         }
-//         return ingressAcmValidationRecords;
-//     });
+        for (const range of Object.entries(rangeBody).map(([k, v]) => ({ key: k, value: v }))) {
+            ingressAcmValidationRecords.push(new aws.route53.Record(`ingress-acm-validation-${range.key}`, {
+                zoneId,
+                allowOverwrite: true,
+                name: range.value.resourceRecordName,
+                type: range.value.resourceRecordType,
+                records: [range.value.resourceRecordValue],
+                ttl: 60,
+            }));
+        }
+        return ingressAcmValidationRecords;
+    });
 
-//     const acmValidationForIngress = new aws.acm.CertificateValidation(`ingress`, {
-//         certificateArn: awsAcmCertForIngress.arn,
-//         validationRecordFqdns: awsAcmCertForIngress.domainValidationOptions.apply(domainValidationOptions => domainValidationOptions.map(dvo => (dvo.resourceRecordName))),
-//     });
-// }
-
-// 
+    const acmValidationForIngress = new aws.acm.CertificateValidation(`ingress`, {
+        certificateArn: awsAcmCertForIngress.arn,
+        validationRecordFqdns: awsAcmCertForIngress.domainValidationOptions.apply(domainValidationOptions => domainValidationOptions.map(dvo => (dvo.resourceRecordName))),
+    });
+}
 
 const currentAwsCallerIdentity = aws.getCallerIdentityOutput({}, { provider: awsconfig.awsProvider });
 const currentAwsAccountId = currentAwsCallerIdentity.accountId;
@@ -246,39 +242,39 @@ const validator = new AptosNodeAWS("validator", {
     },
 }, { providers: { aws: awsconfig.awsProvider } });
 
-pulumi.runtime.registerStackTransformation(setK8sProviderOnEachAWSResource(validator.k8sProvider));
+pulumi.runtime.registerStackTransformation(setK8sProviderOnEachK8sResource(validator.k8sProvider));
 
-// const aptosNodeHelmPrefix = enableForge ? "aptos-node" : pulumi.interpolate`${validator.helmReleaseName}-aptos-node`;
+const aptosNodeHelmPrefix = enableForge ? "aptos-node" : pulumi.interpolate`${validator.helmReleaseName}-aptos-node`;
 
-// const helmReleaseForGenesis = new k8s.helm.v3.Release("genesis", {
-//     name: "genesis",
-//     chart: genesisHelmChartPath.then(genesisHelmChartPath => genesisHelmChartPath.result),
-//     maxHistory: 5,
-//     waitForJobs: false,
-//     values: {
-//         imageTag: imageTag,
-//         chain: {
-//             name: mychainName,
-//             era: era,
-//             chainId: mychainId,
-//         },
-//         genesis: {
-//             numValidators: numValidators,
-//             usernamePrefix: aptosNodeHelmPrefix,
-//             domain: domain,
-//             validator: {
-//                 enableOnchainDiscovery: false,
-//             },
-//             fullnode: {
-//                 enableOnchainDiscovery: zoneId != "",
-//             },
-//         },
-//         ...genesisHelmValues,
-//         chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
-//             genesisHelmChartPath
-//         ).digest('hex') : "",
-//     },
-// });
+const helmReleaseForGenesis = new k8s.helm.v3.Release("genesis", {
+    name: "genesis",
+    chart: genesisHelmChartPath.then(genesisHelmChartPath => genesisHelmChartPath.result),
+    maxHistory: 5,
+    waitForJobs: false,
+    values: {
+        imageTag: imageTag,
+        chain: {
+            name: mychainName,
+            era: era,
+            chainId: mychainId,
+        },
+        genesis: {
+            numValidators: numValidators,
+            usernamePrefix: aptosNodeHelmPrefix,
+            domain: domain,
+            validator: {
+                enableOnchainDiscovery: false,
+            },
+            fullnode: {
+                enableOnchainDiscovery: zoneId != "",
+            },
+        },
+        ...genesisHelmValues,
+        chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
+            genesisHelmChartPath
+        ).digest('hex') : "",
+    },
+});
 
 // const iamDocForExternalDnsRt53 = aws.iam.getPolicyDocumentOutput({
 //     statements: [

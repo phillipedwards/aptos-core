@@ -686,12 +686,6 @@ const baselinePssLabels = {
     "pod-security.kubernetes.io/warn": "baseline",
     "pod-security.kubernetes.io/enforce": "privileged",
 };
-//   subject {
-//     api_group = "rbac.authorization.k8s.io"
-//     kind      = "Group"
-//     name      = "system:serviceaccounts:${each.value}"
-//   }
-// }
 
 const pssDefault = new k8s.core.v1.Namespace("pss-default", {
     apiVersion: "v1",
