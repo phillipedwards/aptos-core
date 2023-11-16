@@ -9,7 +9,10 @@ import * as fs from "fs";
 import * as path from 'path';
 import * as yaml from "yaml";
 import * as defaults from "../../../config/defaults";
-import { computeSha1ForHelmRelease } from "../../../lib/helpers"
+import {
+    computeSha1ForHelmRelease,
+} from "../../../lib/helpers"
+import { getK8sProviderFromEksCluster, getKubeconfigFromEksCluster } from "../../../lib/awsEksKubeConfig"
 
 export interface awsEksClusterArgs {
     eksClusterName: pulumi.Input<string>;
@@ -32,6 +35,7 @@ export interface awsEksClusterArgs {
     utilityInstanceType?: pulumi.Input<string>;
     vpcCidrBlock?: pulumi.Input<string>;
     workspaceNameOverride?: pulumi.Input<string>;
+    manageViaPulumi?: pulumi.Input<boolean>;
 }
 
 export class awsEksCluster extends pulumi.ComponentResource {
@@ -52,8 +56,6 @@ export class awsEksCluster extends pulumi.ComponentResource {
     public readonly k8sRoleBindingForViewers: k8s.rbac.v1.RoleBinding;
     public readonly k8sRoleForDebug: k8s.rbac.v1.ClusterRole;
     public readonly launchTemplateForNodes: aws.ec2.LaunchTemplate[]
-    // public natGw: aws.ec2.NatGateway
-    // public routeTableForPrivate: aws.ec2.RouteTable
     public readonly routeTableForPublic: aws.ec2.RouteTable
     public readonly securityGroupForCluster: aws.ec2.SecurityGroup
     public readonly securityGroupForNodes: aws.ec2.SecurityGroup
@@ -98,6 +100,7 @@ export class awsEksCluster extends pulumi.ComponentResource {
         ]);
         args.workspaceNameOverride = (args.workspaceNameOverride || args.workspaceNameOverride !== "") ? args.workspaceNameOverride : "";
         args.numExtraInstance = (args.numExtraInstance) ? args.numExtraInstance : 0;
+        args.manageViaPulumi = (args.manageViaPulumi) ? args.manageViaPulumi : true;
 
         this.launchTemplateForNodes = []
         this.subnetsForPrivate = []
@@ -478,58 +481,10 @@ export class awsEksCluster extends pulumi.ComponentResource {
             },
         });
 
-        const kubeconfig = pulumi.all([
-            this.eksCluster.name,
-            this.eksCluster.endpoint,
-            this.eksCluster.certificateAuthority.data,
-            args.region,
-            accountId,
-        ]).apply(([name, endpoint, caData, region, accountId]) => {
-            const context = `arn:aws:eks:${region}:${accountId}:cluster/${name}`;
-            const kubeconfigBuilder = new k8sClientLib.KubeConfig();
-            kubeconfigBuilder.loadFromOptions({
-                clusters: [
-                    {
-                        name: context,
-                        server: endpoint,
-                        caData: caData,
-                    },
-                ],
-                contexts: [
-                    {
-                        name: context,
-                        cluster: context,
-                        user: context,
-                    },
-                ],
-                currentContext: context,
-                users: [
-                    {
-                        name: context,
-                        authProvider: undefined,
-                        exec: {
-                            apiVersion: "client.authentication.k8s.io/v1beta1",
-                            command: "aws",
-                            installHint: "Install the aws cli",
-                            args: [
-                                "--region",
-                                region,
-                                "eks",
-                                "get-token",
-                                "--cluster-name",
-                                name,
-                            ],
-                        },
-                    },
-                ],
-            });
-            return kubeconfigBuilder;
-        });
-
-        const k8sProvider = new k8s.Provider(`k8s`, {
-            kubeconfig: kubeconfig.apply(kubeconfig => kubeconfig.exportConfig()),
-        }, {
-            parent: this
+        const k8sProvider = getK8sProviderFromEksCluster({
+            eksCluster: this.eksCluster,
+            region: "us-west-2",
+            accountId: accountId,
         });
 
         const eksClusterAuthOutput = aws.eks.getClusterAuthOutput({
@@ -727,8 +682,10 @@ export class awsEksCluster extends pulumi.ComponentResource {
                         },
                     },
                 },
-                chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
-                    autoscalingHelmChartPath
+                chart_sha1: args.manageViaPulumi ? computeSha1ForHelmRelease(
+                    std.abspath({
+                        input: autoscalingHelmChartPath,
+                    }),
                 ).digest('hex') : "",
             },
         }, {
@@ -830,7 +787,11 @@ export class awsEksCluster extends pulumi.ComponentResource {
                 REGION: args.region,
                 CLUSTER_NAME: args.eksClusterName,
                 // TODO: kubeconfig needs to be a file...
-                KUBECONFIG: kubeconfig.apply(kubeconfig => kubeconfig.exportConfig()),
+                KUBECONFIG: getKubeconfigFromEksCluster({
+                    accountId: accountId,
+                    eksCluster: this.eksCluster,
+                    region: args.region,
+                }).apply(kubeconfig => kubeconfig.exportConfig()),
             },
             create: `aws --region $REGION eks update-kubeconfig --name $CLUSTER_NAME --kubeconfig $KUBECONFIG && kubectl --kubeconfig $KUBECONFIG delete --ignore-not-found storageclass gp2`
         });

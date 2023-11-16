@@ -1,0 +1,13 @@
+config:
+  aptosFullNodeAws:adminSourcesIpv4:
+    - "0.0.0.0/0"
+  aptosFullNodeAws:clientSourcesIpv4:
+    - "0.0.0.0/0"
+  # aptos:azs:
+  #   - "us-west-2a"
+  #   - "us-west-2b"
+  #   - "us-west-2c"
+
+  aptosFullNodeAws:fullnodeName: full
+  aws:profile: ce_admin
+  aws:region: us-west-2

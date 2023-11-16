@@ -3,11 +3,16 @@ import * as aws from "@pulumi/aws";
 import * as k8s from "@pulumi/kubernetes";
 import * as random from "@pulumi/random";
 import * as std from "@pulumi/std";
+import * as awsconfig from "./aws";
 import { awsEksCluster } from "../../../components/aws_eks/src/index";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import { map } from "@pulumi/std/map";
-import { computeSha1ForHelmRelease } from "../../../lib/helpers"
+import {
+    computeSha1ForHelmRelease,
+    setK8sProviderOnEachK8sResource,
+    aliasTransformation,
+} from "../../../lib/helpers"
 import { getK8sProviderFromEksCluster } from "../../../lib/awsEksKubeConfig"
 
 function notImplemented(message: string) {
@@ -103,21 +108,6 @@ const awsTagsMap = {
     "pulumi/stack": pulumi.getStack(),
 };
 
-const awsProvider = new aws.Provider("aws", {
-    // TODO: fix region configurability
-    region: "us-west-2",
-    // accessKey: process.env.AWS_ACCESS_KEY_ID ? process.env.AWS_ACCESS_KEY_ID : undefined,
-    // secretKey: process.env.AWS_SECRET_ACCESS_KEY ? process.env.AWS_SECRET_ACCESS_KEY : undefined,
-    // profile: process.env.AWS_PROFILE ? process.env.AWS_PROFILE : undefined,
-    defaultTags: {
-        tags: {
-            ...awsTagsMap,
-            // TODO: add this tag to aws resources but fix the name
-            // "kubernetes.io/cluster/aptos-default": "owned",
-        }
-    }
-}, { aliases: k8sDefaultProviderAlias ? [k8sDefaultProviderAlias] : [] })
-
 const helmChartPathForPfnAddons = std.abspath({ input: "../../helm/pfn-addons" });
 const helmChartPathForPfnLogger = std.abspath({ input: "../../helm/logger" });
 const helmChartPathForFullnode = std.abspath({ input: "../../helm/fullnode" });
@@ -149,13 +139,7 @@ const eksCluster = new awsEksCluster("eks", {
     fullnodeInstanceType: fullnodeInstanceType,
     numFullnodes: numFullnodes,
     numExtraInstance: numExtraInstance,
-});
-// const aptos = aws.eks.getClusterOutput({
-//     name: `aptos-pfn-${workspaceName}`,
-// });
-// const aptosData = aws.eks.getClusterAuthOutput({
-//     name: aptos.apply(aptos => eksCluster.eksCluster.name),
-// });
+}, { providers: { aws: awsconfig.awsProvider } });
 
 const k8sProvider = getK8sProviderFromEksCluster({
     eksCluster: eksCluster.eksCluster,
@@ -342,6 +326,7 @@ const iamRoleForK8sIntegrations = new aws.iam.Role("k8s-aws-integrations", {
     },
 });
 
+
 const iamRolePolicyForAlbIngress = new aws.iam.RolePolicy("alb-ingress", {
     name: "EKS-Ingress",
     role: iamRoleForK8sIntegrations.name,
@@ -424,6 +409,11 @@ const k8sServiceAccForAwsIntegrations = new k8s.core.v1.ServiceAccount("k8s-aws-
         },
     }
 });
+
+console.log('eksCluster:', eksCluster);
+pulumi.log.info('eksCluster:', eksCluster);
+console.log('eksCluster.vpc:', eksCluster?.vpc);
+pulumi.log.info('eksCluster.vpc:', eksCluster?.vpc);
 
 let iamRolePolicyForK8sIntegrations = undefined
 let rt53ZoneOutputForPfn = undefined

@@ -11,7 +11,7 @@ import {
     computeSha1ForHelmRelease,
     aliasTransformation,
     setAWSProviderOnEachAWSResource,
-    setK8sProviderOnEachAWSResource,
+    setK8sProviderOnEachK8sResource,
 } from "../../../lib/helpers"
 import { recordNamePattern } from "../../../aptos-node/aws/src/config";
 
