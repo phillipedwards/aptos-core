@@ -410,11 +410,6 @@ const k8sServiceAccForAwsIntegrations = new k8s.core.v1.ServiceAccount("k8s-aws-
     }
 });
 
-console.log('eksCluster:', eksCluster);
-pulumi.log.info('eksCluster:', eksCluster);
-console.log('eksCluster.vpc:', eksCluster?.vpc);
-pulumi.log.info('eksCluster.vpc:', eksCluster?.vpc);
-
 let iamRolePolicyForK8sIntegrations = undefined
 let rt53ZoneOutputForPfn = undefined
 let dnsPrefix = undefined
