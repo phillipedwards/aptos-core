@@ -37,10 +37,9 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
     public readonly fullnodeEndpoint: pulumi.Output<string> | undefined;
     public readonly helmReleaseName: pulumi.Output<string>;
     public readonly kubeConfig: pulumi.Output<string> | undefined;
-    // public readonly oidcProvider: pulumi.Output<string>;
+    public readonly oidcProvider: pulumi.Output<string>;
     public readonly validatorEndpoint: pulumi.Output<string> | undefined;
     public readonly vpcId: pulumi.Output<string>;
-    // public readonly awsProvider: aws.Provider;
     public readonly k8sProvider: k8s.Provider;
     public readonly openidConnectProvider: aws.iam.OpenIdConnectProvider;
 
@@ -50,15 +49,7 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
 
         const workspaceName = (args.workspaceNameOverride !== "" && args.workspaceNameOverride) ? args.workspaceNameOverride : pulumi.getStack();
         const domain = getDnsRecordNameFromPatternWithWorkspaceName(args.recordName, workspaceName)
-        // const domain = pulumi.all([workspaceName, args.recordName]).apply(([workspaceName, record]) => {
-        //     if (record === undefined || record === "") {
-        //         return pulumi.interpolate``;
-        //     } else if (record.includes("<workspace>")) {
-        //         return record.replace("<workspace>", workspaceName);
-        //     } else {
-        //         return record;
-        //     }
-        // });
+
         const helmReleaseName = (args.helmReleaseNameOverride !== "" && args.helmReleaseNameOverride) ? args.helmReleaseNameOverride : workspaceName;
 
         const options = {
@@ -66,23 +57,6 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
         };
 
         const profile = config.profile || process.env.AWS_PROFILE;
-
-        // this.awsProvider = new aws.Provider("aws", {
-        //     // TODO: fix region
-        //     region: "us-west-2",
-        //     accessKey: process.env.AWS_ACCESS_KEY_ID ? process.env.AWS_ACCESS_KEY_ID : undefined,
-        //     secretKey: process.env.AWS_SECRET_ACCESS_KEY ? process.env.AWS_SECRET_ACCESS_KEY : undefined,
-        //     profile: process.env.AWS_PROFILE ? process.env.AWS_PROFILE : undefined,
-        //     defaultTags: {
-        //         tags: {
-        //             "pulumi": "validator",
-        //             "pulumi/organziation": pulumi.getOrganization(),
-        //             "pulumi/project": pulumi.getProject(),
-        //             "pulumi/stack": pulumi.getStack(),
-        //             "kubernetes.io/cluster/aptos-default": "owned",
-        //         }
-        //     }
-        // }, { aliases: ["urn:pulumi:sandbox::aws::pulumi:providers:aws::default_5_42_0"] });
 
         const network = new Network("network", {
             ...args.networkConfig,
@@ -118,6 +92,8 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
 
         this.k8sProvider = kubernetes.provider;
 
+        this.oidcProvider = cluster.openidConnectProvider.url;
+
         // const security = new Security("validator", {
         //     vpcId: network.vpc.id,
         //     ingressRules: [], // Define your ingress rules here
@@ -143,8 +119,6 @@ export class AptosNodeAWS extends pulumi.ComponentResource {
         this.awsVpcCidrBlock = network.vpc.cidrBlock;
         this.clusterSecurityGroupId = network.clusterSecurityGroup.id;
         this.helmReleaseName = kubernetes.calicoHelmRelease ? kubernetes.calicoHelmRelease.name : pulumi.interpolate``;
-        // this.kubeConfig = cluster.kubeConfig;
-        // this.oidcProvider = auth.oidcProvider;
         this.vpcId = network.vpc.id;
         this.k8sProvider = kubernetes.provider;
     }

@@ -3,7 +3,6 @@ import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
 import * as aws from "@pulumi/aws";
 import * as k8sClientLib from '@kubernetes/client-node';
-import { awsProvider } from './aws'
 import { getK8sProviderFromEksCluster } from "../../../lib/awsEksKubeConfig"
 
 export interface KubernetesConfig {
@@ -68,7 +67,7 @@ export class Kubernetes extends pulumi.ComponentResource {
     constructor(name: string, args: KubernetesArgs, opts?: pulumi.ComponentResourceOptions) {
         super("aptos-node:aws:Kubernetes", name, {}, opts);
 
-        const accountId = aws.getCallerIdentity({ provider: awsProvider }).then(it => it.accountId);
+        const accountId = aws.getCallerIdentity({ parent: this }).then(it => it.accountId);
 
         // SET DEFAULTS
         if (!args.aptosNodeHelmChartPath) { args.aptosNodeHelmChartPath = "" }

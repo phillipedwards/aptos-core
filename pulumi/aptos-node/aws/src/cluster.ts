@@ -259,11 +259,10 @@ export class Cluster extends pulumi.ComponentResource {
             serviceAccountRoleArn: this.ebsDriverRole.arn,
         }, {
             parent: this,
-            // aliases: [{
-            //     type: "urn:pulumi:stack::aws:eks:addon:Addon::aws-ebs-csi-driver",
-            //     name: "aws-ebs-csi-driver",
-            //     parent: pulumi.rootStackResource
-            // }],
+            aliases: [{
+                name: "aws-ebs-csi-driver",
+                type: "aws:eks:Addon",
+            }],
         });
 
         // Create the CloudWatch log group for the EKS cluster

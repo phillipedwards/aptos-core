@@ -160,22 +160,19 @@ if (zoneId) {
     });
 
     const acmValidationRecordsForIngress = awsAcmCertForIngress.domainValidationOptions.apply(domainValidationOptions => {
-        return domainValidationOptions.reduce((__obj, dvo) => ({ ...__obj, [dvo.domainName]: dvo }));
+        const firstDvo = domainValidationOptions[0];
+        return { [firstDvo.domainName]: firstDvo };
     }).apply(rangeBody => {
-
-        const ingressAcmValidationRecords = [];
-
-        for (const range of Object.entries(rangeBody).map(([k, v]) => ({ key: k, value: v }))) {
-            ingressAcmValidationRecords.push(new aws.route53.Record(`ingress-acm-validation-${range.key}`, {
-                zoneId,
-                allowOverwrite: true,
-                name: range.value.resourceRecordName,
-                type: range.value.resourceRecordType,
-                records: [range.value.resourceRecordValue],
-                ttl: 60,
-            }));
-        }
-        return ingressAcmValidationRecords;
+        const range = Object.entries(rangeBody).map(([k, v]) => ({ key: k, value: v }))[0];
+        const ingressAcmValidationRecord = new aws.route53.Record(`ingress-acm-validation-${range.key}`, {
+            zoneId: zoneId,
+            allowOverwrite: true,
+            name: range.value.resourceRecordName,
+            type: range.value.resourceRecordType,
+            records: [range.value.resourceRecordValue],
+            ttl: 60,
+        });
+        return ingressAcmValidationRecord;
     });
 
     const acmValidationForIngress = new aws.acm.CertificateValidation(`ingress`, {
@@ -276,224 +273,224 @@ const helmReleaseForGenesis = new k8s.helm.v3.Release("genesis", {
     },
 });
 
-// const iamDocForExternalDnsRt53 = aws.iam.getPolicyDocumentOutput({
-//     statements: [
-//         {
-//             actions: [
-//                 "route53:ChangeResourceRecordSets",
-//                 "route53:ListResourceRecordSets",
-//             ],
-//             resources: [`arn:aws:route53:::hostedzone/${zoneId}`],
-//         },
-//         {
-//             actions: ["route53:ListHostedZones"],
-//             resources: ["*"],
-//         },
-//     ],
-// }, { provider: awsconfig.awsProvider });
+const iamDocForExternalDnsRt53 = aws.iam.getPolicyDocumentOutput({
+    statements: [
+        {
+            actions: [
+                "route53:ChangeResourceRecordSets",
+                "route53:ListResourceRecordSets",
+            ],
+            resources: [`arn:aws:route53:::hostedzone/${zoneId}`],
+        },
+        {
+            actions: ["route53:ListHostedZones"],
+            resources: ["*"],
+        },
+    ],
+}, { provider: awsconfig.awsProvider });
 
-// const albIngress = aws.iam.getPolicyDocumentOutput({
-//     statements: [
-//         {
-//             effect: "Allow",
-//             actions: [
-//                 "acm:DescribeCertificate",
-//                 "acm:ListCertificates",
-//                 "acm:GetCertificate",
-//             ],
-//             resources: ["*"],
-//         },
-//         {
-//             effect: "Allow",
-//             actions: [
-//                 "ec2:AuthorizeSecurityGroupIngress",
-//                 "ec2:CreateSecurityGroup",
-//                 "ec2:CreateTags",
-//                 "ec2:DeleteTags",
-//                 "ec2:DeleteSecurityGroup",
-//                 "ec2:DescribeAccountAttributes",
-//                 "ec2:DescribeAddresses",
-//                 "ec2:DescribeAvailabilityZones",
-//                 "ec2:DescribeInstances",
-//                 "ec2:DescribeInstanceStatus",
-//                 "ec2:DescribeInternetGateways",
-//                 "ec2:DescribeNetworkInterfaces",
-//                 "ec2:DescribeSecurityGroups",
-//                 "ec2:DescribeSubnets",
-//                 "ec2:DescribeTags",
-//                 "ec2:DescribeVpcs",
-//                 "ec2:ModifyInstanceAttribute",
-//                 "ec2:ModifyNetworkInterfaceAttribute",
-//                 "ec2:RevokeSecurityGroupIngress",
-//             ],
-//             resources: ["*"],
-//         },
-//         {
-//             effect: "Allow",
-//             actions: [
-//                 "elasticloadbalancing:AddListenerCertificates",
-//                 "elasticloadbalancing:AddTags",
-//                 "elasticloadbalancing:CreateListener",
-//                 "elasticloadbalancing:CreateLoadBalancer",
-//                 "elasticloadbalancing:CreateRule",
-//                 "elasticloadbalancing:CreateTargetGroup",
-//                 "elasticloadbalancing:DeleteListener",
-//                 "elasticloadbalancing:DeleteLoadBalancer",
-//                 "elasticloadbalancing:DeleteRule",
-//                 "elasticloadbalancing:DeleteTargetGroup",
-//                 "elasticloadbalancing:DeregisterTargets",
-//                 "elasticloadbalancing:DescribeListenerCertificates",
-//                 "elasticloadbalancing:DescribeListeners",
-//                 "elasticloadbalancing:DescribeLoadBalancers",
-//                 "elasticloadbalancing:DescribeLoadBalancerAttributes",
-//                 "elasticloadbalancing:DescribeRules",
-//                 "elasticloadbalancing:DescribeSSLPolicies",
-//                 "elasticloadbalancing:DescribeTags",
-//                 "elasticloadbalancing:DescribeTargetGroups",
-//                 "elasticloadbalancing:DescribeTargetGroupAttributes",
-//                 "elasticloadbalancing:DescribeTargetHealth",
-//                 "elasticloadbalancing:ModifyListener",
-//                 "elasticloadbalancing:ModifyLoadBalancerAttributes",
-//                 "elasticloadbalancing:ModifyRule",
-//                 "elasticloadbalancing:ModifyTargetGroup",
-//                 "elasticloadbalancing:ModifyTargetGroupAttributes",
-//                 "elasticloadbalancing:RegisterTargets",
-//                 "elasticloadbalancing:RemoveListenerCertificates",
-//                 "elasticloadbalancing:RemoveTags",
-//                 "elasticloadbalancing:SetIpAddressType",
-//                 "elasticloadbalancing:SetSecurityGroups",
-//                 "elasticloadbalancing:SetSubnets",
-//                 "elasticloadbalancing:SetWebACL",
-//             ],
-//             resources: ["*"],
-//         },
-//         {
-//             effect: "Allow",
-//             actions: [
-//                 "iam:CreateServiceLinkedRole",
-//                 "iam:GetServerCertificate",
-//                 "iam:ListServerCertificates",
-//             ],
-//             resources: ["*"],
-//         },
-//         {
-//             effect: "Allow",
-//             actions: ["cognito-idp:DescribeUserPoolClient"],
-//             resources: ["*"],
-//         },
-//         {
-//             effect: "Allow",
-//             actions: [
-//                 "waf-regional:GetWebACLForResource",
-//                 "waf-regional:GetWebACL",
-//                 "waf-regional:AssociateWebACL",
-//                 "waf-regional:DisassociateWebACL",
-//             ],
-//             resources: ["*"],
-//         },
-//         {
-//             effect: "Allow",
-//             actions: [
-//                 "tag:GetResources",
-//                 "tag:TagResources",
-//             ],
-//             resources: ["*"],
-//         },
-//         {
-//             effect: "Allow",
-//             actions: ["waf:GetWebACL"],
-//             resources: ["*"],
-//         },
-//         {
-//             effect: "Allow",
-//             actions: [
-//                 "wafv2:GetWebACL",
-//                 "wafv2:GetWebACLForResource",
-//                 "wafv2:AssociateWebACL",
-//                 "wafv2:DisassociateWebACL",
-//             ],
-//             resources: ["*"],
-//         },
-//     ],
-// }, { provider: awsconfig.awsProvider });
+const albIngress = aws.iam.getPolicyDocumentOutput({
+    statements: [
+        {
+            effect: "Allow",
+            actions: [
+                "acm:DescribeCertificate",
+                "acm:ListCertificates",
+                "acm:GetCertificate",
+            ],
+            resources: ["*"],
+        },
+        {
+            effect: "Allow",
+            actions: [
+                "ec2:AuthorizeSecurityGroupIngress",
+                "ec2:CreateSecurityGroup",
+                "ec2:CreateTags",
+                "ec2:DeleteTags",
+                "ec2:DeleteSecurityGroup",
+                "ec2:DescribeAccountAttributes",
+                "ec2:DescribeAddresses",
+                "ec2:DescribeAvailabilityZones",
+                "ec2:DescribeInstances",
+                "ec2:DescribeInstanceStatus",
+                "ec2:DescribeInternetGateways",
+                "ec2:DescribeNetworkInterfaces",
+                "ec2:DescribeSecurityGroups",
+                "ec2:DescribeSubnets",
+                "ec2:DescribeTags",
+                "ec2:DescribeVpcs",
+                "ec2:ModifyInstanceAttribute",
+                "ec2:ModifyNetworkInterfaceAttribute",
+                "ec2:RevokeSecurityGroupIngress",
+            ],
+            resources: ["*"],
+        },
+        {
+            effect: "Allow",
+            actions: [
+                "elasticloadbalancing:AddListenerCertificates",
+                "elasticloadbalancing:AddTags",
+                "elasticloadbalancing:CreateListener",
+                "elasticloadbalancing:CreateLoadBalancer",
+                "elasticloadbalancing:CreateRule",
+                "elasticloadbalancing:CreateTargetGroup",
+                "elasticloadbalancing:DeleteListener",
+                "elasticloadbalancing:DeleteLoadBalancer",
+                "elasticloadbalancing:DeleteRule",
+                "elasticloadbalancing:DeleteTargetGroup",
+                "elasticloadbalancing:DeregisterTargets",
+                "elasticloadbalancing:DescribeListenerCertificates",
+                "elasticloadbalancing:DescribeListeners",
+                "elasticloadbalancing:DescribeLoadBalancers",
+                "elasticloadbalancing:DescribeLoadBalancerAttributes",
+                "elasticloadbalancing:DescribeRules",
+                "elasticloadbalancing:DescribeSSLPolicies",
+                "elasticloadbalancing:DescribeTags",
+                "elasticloadbalancing:DescribeTargetGroups",
+                "elasticloadbalancing:DescribeTargetGroupAttributes",
+                "elasticloadbalancing:DescribeTargetHealth",
+                "elasticloadbalancing:ModifyListener",
+                "elasticloadbalancing:ModifyLoadBalancerAttributes",
+                "elasticloadbalancing:ModifyRule",
+                "elasticloadbalancing:ModifyTargetGroup",
+                "elasticloadbalancing:ModifyTargetGroupAttributes",
+                "elasticloadbalancing:RegisterTargets",
+                "elasticloadbalancing:RemoveListenerCertificates",
+                "elasticloadbalancing:RemoveTags",
+                "elasticloadbalancing:SetIpAddressType",
+                "elasticloadbalancing:SetSecurityGroups",
+                "elasticloadbalancing:SetSubnets",
+                "elasticloadbalancing:SetWebACL",
+            ],
+            resources: ["*"],
+        },
+        {
+            effect: "Allow",
+            actions: [
+                "iam:CreateServiceLinkedRole",
+                "iam:GetServerCertificate",
+                "iam:ListServerCertificates",
+            ],
+            resources: ["*"],
+        },
+        {
+            effect: "Allow",
+            actions: ["cognito-idp:DescribeUserPoolClient"],
+            resources: ["*"],
+        },
+        {
+            effect: "Allow",
+            actions: [
+                "waf-regional:GetWebACLForResource",
+                "waf-regional:GetWebACL",
+                "waf-regional:AssociateWebACL",
+                "waf-regional:DisassociateWebACL",
+            ],
+            resources: ["*"],
+        },
+        {
+            effect: "Allow",
+            actions: [
+                "tag:GetResources",
+                "tag:TagResources",
+            ],
+            resources: ["*"],
+        },
+        {
+            effect: "Allow",
+            actions: ["waf:GetWebACL"],
+            resources: ["*"],
+        },
+        {
+            effect: "Allow",
+            actions: [
+                "wafv2:GetWebACL",
+                "wafv2:GetWebACLForResource",
+                "wafv2:AssociateWebACL",
+                "wafv2:DisassociateWebACL",
+            ],
+            resources: ["*"],
+        },
+    ],
+}, { provider: awsconfig.awsProvider });
 
-// const k8sAwsIntegrationsAssumeRole = aws.iam.getPolicyDocumentOutput({
-//     statements: [{
-//         actions: ["sts:AssumeRoleWithWebIdentity"],
-//         principals: [{
-//             type: "Federated",
-//             identifiers: [pulumi.all([currentAwsCallerIdentity, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
-//         }],
-//         conditions: [
-//             {
-//                 test: "StringEquals",
-//                 variable: pulumi.interpolate`${validator.openidConnectProvider}:sub`,
-//                 values: ["system:serviceaccount:kube-system:k8s-aws-integrations"],
-//             },
-//             {
-//                 test: "StringEquals",
-//                 variable: pulumi.interpolate`${validator.openidConnectProvider}:aud`,
-//                 values: ["sts.amazonaws.com"],
-//             },
-//         ],
-//     }],
-// }, { provider: awsconfig.awsProvider });
+const k8sAwsIntegrationsAssumeRole = aws.iam.getPolicyDocumentOutput({
+    statements: [{
+        actions: ["sts:AssumeRoleWithWebIdentity"],
+        principals: [{
+            type: "Federated",
+            identifiers: [pulumi.all([currentAwsCallerIdentity, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
+        }],
+        conditions: [
+            {
+                test: "StringEquals",
+                variable: pulumi.interpolate`${validator.openidConnectProvider}:sub`,
+                values: ["system:serviceaccount:kube-system:k8s-aws-integrations"],
+            },
+            {
+                test: "StringEquals",
+                variable: pulumi.interpolate`${validator.openidConnectProvider}:aud`,
+                values: ["sts.amazonaws.com"],
+            },
+        ],
+    }],
+}, { provider: awsconfig.awsProvider });
 
-// const k8sAwsIntegrationsResource = new aws.iam.Role("k8s-aws-integrations", {
-//     name: pulumi.interpolate`${workspaceName}-k8s-aws-integrations`,
-//     path: iamPath,
-//     assumeRolePolicy: k8sAwsIntegrationsAssumeRole.apply(k8sAwsIntegrationsAssumeRole => k8sAwsIntegrationsAssumeRole.json),
-//     permissionsBoundary: permissionsBoundaryPolicy,
-//     tags: {
-//         terraform: "testnet",
-//         workspace: workspaceName,
-//     },
-// });
+const k8sAwsIntegrationsResource = new aws.iam.Role("k8s-aws-integrations", {
+    name: pulumi.interpolate`${workspaceName}-k8s-aws-integrations`,
+    path: iamPath,
+    assumeRolePolicy: k8sAwsIntegrationsAssumeRole.apply(k8sAwsIntegrationsAssumeRole => k8sAwsIntegrationsAssumeRole.json),
+    permissionsBoundary: permissionsBoundaryPolicy,
+    tags: {
+        terraform: "testnet",
+        workspace: workspaceName,
+    },
+});
 
-// const k8sAwsIntegrationsResource2: aws.iam.RolePolicy[] = [];
+const k8sAwsIntegrationsResource2: aws.iam.RolePolicy[] = [];
 
-// for (const range = { value: 0 }; range.value < (zoneId != "" ? 1 : 0); range.value++) {
-//     k8sAwsIntegrationsResource2.push(new aws.iam.RolePolicy(`k8s-aws-integrations-${range.value}`, {
-//         name: "externalDns",
-//         role: k8sAwsIntegrationsResource.name,
-//         policy: iamDocForExternalDnsRt53.apply(externalDns => externalDns.json),
-//     }));
-// }
+for (const range = { value: 0 }; range.value < (zoneId != "" ? 1 : 0); range.value++) {
+    k8sAwsIntegrationsResource2.push(new aws.iam.RolePolicy(`k8s-aws-integrations-${range.value}`, {
+        name: "externalDns",
+        role: k8sAwsIntegrationsResource.name,
+        policy: iamDocForExternalDnsRt53.apply(externalDns => externalDns.json),
+    }));
+}
 
-// const albIngressResource = new aws.iam.RolePolicy("albIngress", {
-//     name: "EKS-Ingress",
-//     role: k8sAwsIntegrationsResource.name,
-//     policy: albIngress.apply(albIngress => albIngress.json),
-// });
+const albIngressResource = new aws.iam.RolePolicy("albIngress", {
+    name: "EKS-Ingress",
+    role: k8sAwsIntegrationsResource.name,
+    policy: albIngress.apply(albIngress => albIngress.json),
+});
 
-// const clusterAutoscalerAssumeRole = aws.iam.getPolicyDocumentOutput({
-//     statements: [{
-//         actions: ["sts:AssumeRoleWithWebIdentity"],
-//         principals: [{
-//             type: "Federated",
-//             identifiers: [pulumi.all([currentAwsCallerIdentity, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
-//         }],
-//         conditions: [
-//             {
-//                 test: "StringEquals",
-//                 variable: pulumi.interpolate`${validator.openidConnectProvider}:sub`,
-//                 values: ["system:serviceaccount:kube-system:clusterAutoscaler"],
-//             },
-//             {
-//                 test: "StringEquals",
-//                 variable: pulumi.interpolate`${validator.openidConnectProvider}:aud`,
-//                 values: ["sts.amazonaws.com"],
-//             },
-//         ],
-//     }],
-// }, { provider: awsconfig.awsProvider });
+const clusterAutoscalerAssumeRole = aws.iam.getPolicyDocumentOutput({
+    statements: [{
+        actions: ["sts:AssumeRoleWithWebIdentity"],
+        principals: [{
+            type: "Federated",
+            identifiers: [pulumi.all([currentAwsCallerIdentity, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
+        }],
+        conditions: [
+            {
+                test: "StringEquals",
+                variable: pulumi.interpolate`${validator.openidConnectProvider}:sub`,
+                values: ["system:serviceaccount:kube-system:clusterAutoscaler"],
+            },
+            {
+                test: "StringEquals",
+                variable: pulumi.interpolate`${validator.openidConnectProvider}:aud`,
+                values: ["sts.amazonaws.com"],
+            },
+        ],
+    }],
+}, { provider: awsconfig.awsProvider });
 
-// const clusterAutoscalerResource = new aws.iam.Role("clusterAutoscaler", {
-//     name: pulumi.interpolate`aptos-node-testnet-${workspaceName}-clusterAutoscaler`,
-//     path: iamPath,
-//     permissionsBoundary: permissionsBoundaryPolicy,
-//     assumeRolePolicy: clusterAutoscalerAssumeRole.apply(clusterAutoscalerAssumeRole => clusterAutoscalerAssumeRole.json),
-// });
+const clusterAutoscalerResource = new aws.iam.Role("clusterAutoscaler", {
+    name: pulumi.interpolate`aptos-node-testnet-${workspaceName}-clusterAutoscaler`,
+    path: iamPath,
+    permissionsBoundary: permissionsBoundaryPolicy,
+    assumeRolePolicy: clusterAutoscalerAssumeRole.apply(clusterAutoscalerAssumeRole => clusterAutoscalerAssumeRole.json),
+});
 
 // const autoscaling = new k8s.helm.v3.Release("autoscaling", {
 //     name: "autoscaling",
@@ -531,268 +528,268 @@ const helmReleaseForGenesis = new k8s.helm.v3.Release("genesis", {
 //     },
 // });
 
-// const iamDocForClusterAutoscaler = aws.iam.getPolicyDocumentOutput({
-//     statements: [
-//         {
-//             sid: "Autoscaling",
-//             actions: [
-//                 "autoscaling:SetDesiredCapacity",
-//                 "autoscaling:TerminateInstanceInAutoScalingGroup",
-//             ],
-//             resources: ["*"],
-//             conditions: [{
-//                 test: "StringEquals",
-//                 variable: pulumi.interpolate`aws:ResourceTag/k8s.io/clusterAutoscaler/${validator.awsEksCluster?.name}`,
-//                 values: ["owned"],
-//             }],
-//         },
-//         {
-//             sid: "DescribeAutoscaling",
-//             actions: [
-//                 "autoscaling:DescribeAutoScalingGroups",
-//                 "autoscaling:DescribeAutoScalingInstances",
-//                 "autoscaling:DescribeLaunchConfigurations",
-//                 "autoscaling:DescribeScalingActivities",
-//                 "autoscaling:DescribeTags",
-//                 "ec2:DescribeInstanceTypes",
-//                 "ec2:DescribeLaunchTemplateVersions",
-//                 "ec2:DescribeImages",
-//                 "ec2:GetInstanceTypesFromInstanceRequirements",
-//                 "eks:DescribeNodegroup",
-//             ],
-//             resources: ["*"],
-//         },
-//     ],
-// }, { provider: awsconfig.awsProvider });
+const iamDocForClusterAutoscaler = aws.iam.getPolicyDocumentOutput({
+    statements: [
+        {
+            sid: "Autoscaling",
+            actions: [
+                "autoscaling:SetDesiredCapacity",
+                "autoscaling:TerminateInstanceInAutoScalingGroup",
+            ],
+            resources: ["*"],
+            conditions: [{
+                test: "StringEquals",
+                variable: pulumi.interpolate`aws:ResourceTag/k8s.io/clusterAutoscaler/${validator.awsEksCluster?.name}`,
+                values: ["owned"],
+            }],
+        },
+        {
+            sid: "DescribeAutoscaling",
+            actions: [
+                "autoscaling:DescribeAutoScalingGroups",
+                "autoscaling:DescribeAutoScalingInstances",
+                "autoscaling:DescribeLaunchConfigurations",
+                "autoscaling:DescribeScalingActivities",
+                "autoscaling:DescribeTags",
+                "ec2:DescribeInstanceTypes",
+                "ec2:DescribeLaunchTemplateVersions",
+                "ec2:DescribeImages",
+                "ec2:GetInstanceTypesFromInstanceRequirements",
+                "eks:DescribeNodegroup",
+            ],
+            resources: ["*"],
+        },
+    ],
+}, { provider: awsconfig.awsProvider });
 
-// const iamRolePolicyForClusterAutoscaler = new aws.iam.RolePolicy("clusterAutoscaler", {
-//     name: "Helm",
-//     role: clusterAutoscalerResource.name,
-//     policy: iamDocForClusterAutoscaler.apply(clusterAutoscaler => clusterAutoscaler.json),
-// });
+const iamRolePolicyForClusterAutoscaler = new aws.iam.RolePolicy("clusterAutoscaler", {
+    name: "Helm",
+    role: clusterAutoscalerResource.name,
+    policy: iamDocForClusterAutoscaler.apply(clusterAutoscaler => clusterAutoscaler.json),
+});
 
-// const k8sNamesapceChaosMesh = new k8s.core.v1.Namespace("chaos-mesh", {
-//     metadata: {
-//         annotations: {
-//             name: "chaos-mesh",
-//         },
-//         name: "chaos-mesh",
-//     }
-// });
+const k8sNamesapceChaosMesh = new k8s.core.v1.Namespace("chaos-mesh", {
+    metadata: {
+        annotations: {
+            name: "chaos-mesh",
+        },
+        name: "chaos-mesh",
+    }
+});
 
-// const helmReleaseForChaosMesh = new k8s.helm.v3.Release("chaos-mesh", {
-//     name: "chaos-mesh",
-//     namespace: k8sNamesapceChaosMesh.metadata.name,
-//     chart: chaosMeshHelmChartPath.then(chaosMeshHelmChartPath => chaosMeshHelmChartPath.result),
-//     maxHistory: 5,
-//     waitForJobs: false,
-//     values: {
-//         ingress: {
-//             enable: zoneId ? true : false,
-//             domain: zoneId ? pulumi.interpolate`chaos.${domain}` : "",
-//             acmCertificate: awsAcmCertForIngress ? awsAcmCertForIngress.id : undefined,
-//             loadBalancerSourceRanges: std.joinOutput({
-//                 separator: ",",
-//                 input: clientSourcesIpv4,
-//             }).result,
-//             awsTags: awsTagsMap,
-//         },
-//         "chaos-mesh": {
-//             chaosDaemon: {
-//                 tolerations: [{
-//                     key: "aptos.org/nodepool",
-//                     value: "validators",
-//                     effect: "NoExecute",
-//                 }],
-//             },
-//         },
-//         chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
-//             chaosMeshHelmChartPath
-//         ).digest('hex') : "",
-//     },
-// });
+const helmReleaseForChaosMesh = new k8s.helm.v3.Release("chaos-mesh", {
+    name: "chaos-mesh",
+    namespace: k8sNamesapceChaosMesh.metadata.name,
+    chart: chaosMeshHelmChartPath.then(chaosMeshHelmChartPath => chaosMeshHelmChartPath.result),
+    maxHistory: 5,
+    waitForJobs: false,
+    values: {
+        ingress: {
+            enable: zoneId ? true : false,
+            domain: zoneId ? pulumi.interpolate`chaos.${domain}` : "",
+            acmCertificate: awsAcmCertForIngress ? awsAcmCertForIngress.id : undefined,
+            loadBalancerSourceRanges: std.joinOutput({
+                separator: ",",
+                input: clientSourcesIpv4,
+            }).result,
+            awsTags: awsTagsMap,
+        },
+        "chaos-mesh": {
+            chaosDaemon: {
+                tolerations: [{
+                    key: "aptos.org/nodepool",
+                    value: "validators",
+                    effect: "NoExecute",
+                }],
+            },
+        },
+        chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
+            chaosMeshHelmChartPath
+        ).digest('hex') : "",
+    },
+});
 
-// // service account used for all external AWS-facing services, such as ALB ingress controller and externalDns
-// const k8sSaForK8sAwsIntegrations = new k8s.core.v1.ServiceAccount("k8s-aws-integrations", {
-//     metadata: {
-//         name: "k8s-aws-integrations",
-//         namespace: "kube-system",
-//         annotations: {
-//             "eks.amazonaws.com/role-arn": k8sAwsIntegrationsResource.arn,
-//         },
-//     }
-// });
+// service account used for all external AWS-facing services, such as ALB ingress controller and externalDns
+const k8sSaForK8sAwsIntegrations = new k8s.core.v1.ServiceAccount("k8s-aws-integrations", {
+    metadata: {
+        name: "k8s-aws-integrations",
+        namespace: "kube-system",
+        annotations: {
+            "eks.amazonaws.com/role-arn": k8sAwsIntegrationsResource.arn,
+        },
+    }
+});
 
-// // when upgrading the AWS ALB ingress controller, update the CRDs as well using:
-// // kubectl apply -k "github.com/aws/eks-charts/stable/aws-load-balancer-controller/crds?ref=master"
-// const helmReleaseForAwsLBController = new k8s.helm.v3.Release("aws-load-balancer-controller", {
-//     name: "aws-load-balancer-controller",
-//     repositoryOpts: {
-//         repo: "https://aws.github.io/eks-charts",
-//     },
-//     chart: "aws-load-balancer-controller",
-//     version: "1.4.3",
-//     namespace: "kube-system",
-//     maxHistory: 5,
-//     waitForJobs: false,
-//     values: [JSON.stringify({
-//         serviceAccount: {
-//             create: false,
-//             name: k8sSaForK8sAwsIntegrations.metadata.name,
-//         },
-//         clusterName: validator.awsEksCluster?.name,
-//         region: awsconfig.region,
-//         vpcId: validator.vpcId,
-//     })],
-// });
+// when upgrading the AWS ALB ingress controller, update the CRDs as well using:
+// kubectl apply -k "github.com/aws/eks-charts/stable/aws-load-balancer-controller/crds?ref=master"
+const helmReleaseForAwsLBController = new k8s.helm.v3.Release("aws-load-balancer-controller", {
+    name: "aws-load-balancer-controller",
+    repositoryOpts: {
+        repo: "https://aws.github.io/eks-charts",
+    },
+    chart: "aws-load-balancer-controller",
+    version: "1.4.3",
+    namespace: "kube-system",
+    maxHistory: 5,
+    waitForJobs: false,
+    values: {
+        serviceAccount: {
+            create: false,
+            name: k8sSaForK8sAwsIntegrations.metadata.name,
+        },
+        clusterName: validator.awsEksCluster?.name,
+        region: awsconfig.region,
+        vpcId: validator.vpcId,
+    },
+});
 
-// if (zoneId) {
-//     const hemlReleaseForExternalDns = new k8s.helm.v3.Release(`externalDns`, {
-//         name: "externalDns",
-//         repositoryOpts: {
-//             repo: "https://kubernetes-sigs.github.io/externalDns",
-//         },
-//         chart: "externalDns",
-//         version: "1.11.0",
-//         namespace: "kube-system",
-//         maxHistory: 5,
-//         waitForJobs: false,
-//         values: [JSON.stringify({
-//             serviceAccount: {
-//                 create: false,
-//                 name: k8sSaForK8sAwsIntegrations.metadata.name,
-//             },
-//             domainFilters: (route53Zone) ? [route53Zone.name] : [],
-//             txtOwnerId: zoneId,
-//         })],
-//     });
-// }
+if (zoneId) {
+    const hemlReleaseForExternalDns = new k8s.helm.v3.Release(`external-dns`, {
+        name: "external-dns",
+        repositoryOpts: {
+            repo: "https://kubernetes-sigs.github.io/external-dns",
+        },
+        chart: "external-dns",
+        version: "1.11.0",
+        namespace: "kube-system",
+        maxHistory: 5,
+        waitForJobs: false,
+        values: {
+            serviceAccount: {
+                create: false,
+                name: k8sSaForK8sAwsIntegrations.metadata.name,
+            },
+            domainFilters: (route53Zone) ? [route53Zone.name] : [],
+            txtOwnerId: zoneId,
+        },
+    });
+}
 
-// if (enableForge) {
-//     const helmReleaseForTestnetAddons = new k8s.helm.v3.Release(`testnet-addons`, {
-//         name: "testnet-addons",
-//         chart: testnetAddonsHelmChartPath.then(testnetAddonsHelmChartPath => testnetAddonsHelmChartPath.result),
-//         maxHistory: 5,
-//         waitForJobs: false,
-//         values: {
-//             imageTag: imageTag,
-//             genesis: {
-//                 era: era,
-//                 usernamePrefix: aptosNodeHelmPrefix,
-//                 chainId: chainId,
-//                 numValidators: numValidators,
-//             },
-//             service: {
-//                 domain: domain,
-//                 awsTags: awsTagsMap,
-//             },
-//             ingress: {
-//                 acmCertificate: awsAcmCertForIngress ? awsAcmCertForIngress.arn : undefined,
-//                 loadBalancerSourceRanges: clientSourcesIpv4,
-//             },
-//             loadTest: {
-//                 fullnodeGroups: aptosNodeHelmValues.fullnode ? aptosNodeHelmValues.fullnode.groups : [],
-//                 config: {
-//                     numFullnodeGroups: numFullnodeGroups,
-//                 },
-//             },
-//             ...testnetAddonsHelmValues,
-//             chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
-//                 testnetAddonsHelmChartPath
-//             ).digest('hex') : "",
-//         },
-//     });
+if (enableForge) {
+    const helmReleaseForTestnetAddons = new k8s.helm.v3.Release(`testnet-addons`, {
+        name: "testnet-addons",
+        chart: testnetAddonsHelmChartPath.then(testnetAddonsHelmChartPath => testnetAddonsHelmChartPath.result),
+        maxHistory: 5,
+        waitForJobs: false,
+        values: {
+            imageTag: imageTag,
+            genesis: {
+                era: era,
+                usernamePrefix: aptosNodeHelmPrefix,
+                chainId: chainId,
+                numValidators: numValidators,
+            },
+            service: {
+                domain: domain,
+                awsTags: awsTagsMap,
+            },
+            ingress: {
+                acmCertificate: awsAcmCertForIngress ? awsAcmCertForIngress.arn : undefined,
+                loadBalancerSourceRanges: clientSourcesIpv4,
+            },
+            loadTest: {
+                fullnodeGroups: aptosNodeHelmValues.fullnode ? aptosNodeHelmValues.fullnode.groups : [],
+                config: {
+                    numFullnodeGroups: numFullnodeGroups,
+                },
+            },
+            ...testnetAddonsHelmValues,
+            chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
+                testnetAddonsHelmChartPath
+            ).digest('hex') : "",
+        },
+    });
 
-//     const iamDocForForgeAssumeRole = aws.iam.getPolicyDocumentOutput({
-//         statements: [{
-//             actions: ["sts:AssumeRoleWithWebIdentity"],
-//             principals: [{
-//                 type: "Federated",
-//                 identifiers: [pulumi.all([currentAwsCallerIdentity, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
-//             }],
-//             conditions: [
-//                 {
-//                     test: "StringEquals",
-//                     variable: pulumi.interpolate`${validator.openidConnectProvider}:sub`,
-//                     values: ["system:serviceaccount:default:forge"],
-//                 },
-//                 {
-//                     test: "StringEquals",
-//                     variable: pulumi.interpolate`${validator.openidConnectProvider}:aud`,
-//                     values: ["sts.amazonaws.com"],
-//                 },
-//             ],
-//         }],
-//     }, { provider: awsconfig.awsProvider });
+    const iamDocForForgeAssumeRole = aws.iam.getPolicyDocumentOutput({
+        statements: [{
+            actions: ["sts:AssumeRoleWithWebIdentity"],
+            principals: [{
+                type: "Federated",
+                identifiers: [pulumi.all([currentAwsCallerIdentity, validator.openidConnectProvider]).apply(([current, oidcProvider]) => `arn:aws:iam::${current.accountId}:oidc-provider/${oidcProvider}`)],
+            }],
+            conditions: [
+                {
+                    test: "StringEquals",
+                    variable: pulumi.interpolate`${validator.openidConnectProvider}:sub`,
+                    values: ["system:serviceaccount:default:forge"],
+                },
+                {
+                    test: "StringEquals",
+                    variable: pulumi.interpolate`${validator.openidConnectProvider}:aud`,
+                    values: ["sts.amazonaws.com"],
+                },
+            ],
+        }],
+    }, { provider: awsconfig.awsProvider });
 
-//     const iamRoleForge = new aws.iam.Role("forge", {
-//         name: pulumi.interpolate`aptos-node-testnet-${workspaceName}-forge`,
-//         path: iamPath,
-//         permissionsBoundary: permissionsBoundaryPolicy,
-//         assumeRolePolicy: iamDocForForgeAssumeRole.apply(forgeAssumeRole => forgeAssumeRole.json),
-//     });
+    const iamRoleForge = new aws.iam.Role("forge", {
+        name: pulumi.interpolate`aptos-node-testnet-${workspaceName}-forge`,
+        path: iamPath,
+        permissionsBoundary: permissionsBoundaryPolicy,
+        assumeRolePolicy: iamDocForForgeAssumeRole.apply(forgeAssumeRole => forgeAssumeRole.json),
+    });
 
 
 
-//     const helmReleaseForForge = new k8s.helm.v3.Release(`forge`, {
-//         name: "forge",
-//         chart: forgeHelmChartPath.then(forgeHelmChartPath => forgeHelmChartPath.result),
-//         maxHistory: 2,
-//         waitForJobs: false,
-//         values: {
-//             forge: {
-//                 image: {
-//                     tag: imageTag,
-//                 },
-//             },
-//             serviceAccount: {
-//                 annotations: {
-//                     "eks.amazonaws.com/role-arn": iamRoleForge.arn,
-//                 },
-//             },
-//             chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
-//                 forgeHelmChartPath
-//             ).digest('hex') : "",
-//         },
-//     });
+    const helmReleaseForForge = new k8s.helm.v3.Release(`forge`, {
+        name: "forge",
+        chart: forgeHelmChartPath.then(forgeHelmChartPath => forgeHelmChartPath.result),
+        maxHistory: 2,
+        waitForJobs: false,
+        values: {
+            forge: {
+                image: {
+                    tag: imageTag,
+                },
+            },
+            serviceAccount: {
+                annotations: {
+                    "eks.amazonaws.com/role-arn": iamRoleForge.arn,
+                },
+            },
+            chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
+                forgeHelmChartPath
+            ).digest('hex') : "",
+        },
+    });
 
-//     const iamDocForForgeS3StarOnForgeBucket = aws.iam.getPolicyDocumentOutput({
-//         statements: [{
-//             sid: "AllowS3",
-//             actions: ["s3:*"],
-//             resources: [
-//                 `arn:aws:s3:::${forgeConfigS3Bucket}*`,
-//                 `arn:aws:s3:::${forgeConfigS3Bucket}/*`,
-//             ],
-//         }],
-//     }, { provider: awsconfig.awsProvider });
+    const iamDocForForgeS3StarOnForgeBucket = aws.iam.getPolicyDocumentOutput({
+        statements: [{
+            sid: "AllowS3",
+            actions: ["s3:*"],
+            resources: [
+                `arn:aws:s3:::${forgeConfigS3Bucket}*`,
+                `arn:aws:s3:::${forgeConfigS3Bucket}/*`,
+            ],
+        }],
+    }, { provider: awsconfig.awsProvider });
 
-//     const iamRolePolicyForForge = new aws.iam.RolePolicy("forge", {
-//         name: "Helm",
-//         role: iamRoleForge.name,
-//         policy: iamDocForForgeS3StarOnForgeBucket.apply(forge => forge.json),
-//     });
-// }
+    const iamRolePolicyForForge = new aws.iam.RolePolicy("forge", {
+        name: "Helm",
+        role: iamRoleForge.name,
+        policy: iamDocForForgeS3StarOnForgeBucket.apply(forge => forge.json),
+    });
+}
 
-// if (enableNodeHealthChecker) {
-//     const helmReleaseForNodeHealthChecker = new k8s.helm.v3.Release(`node-health-checker`, {
-//         name: "node-health-checker",
-//         chart: nodeHealthCheckerHelmChartPath.then(nodeHealthCheckerHelmChartPath => nodeHealthCheckerHelmChartPath.result),
-//         maxHistory: 5,
-//         waitForJobs: false,
-//         values: {
-//             imageTag: imageTag,
-//             serviceAccount: {
-//                 create: false,
-//                 name: "testnet-addons",
-//             },
-//             ...nodeHealthCheckerHelmValues,
-//             chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
-//                 nodeHealthCheckerHelmChartPath
-//             ).digest('hex') : "",
-//         },
-//     });
-// }
+if (enableNodeHealthChecker) {
+    const helmReleaseForNodeHealthChecker = new k8s.helm.v3.Release(`node-health-checker`, {
+        name: "node-health-checker",
+        chart: nodeHealthCheckerHelmChartPath.then(nodeHealthCheckerHelmChartPath => nodeHealthCheckerHelmChartPath.result),
+        maxHistory: 5,
+        waitForJobs: false,
+        values: {
+            imageTag: imageTag,
+            serviceAccount: {
+                create: false,
+                name: "testnet-addons",
+            },
+            ...nodeHealthCheckerHelmValues,
+            chart_sha1: manageViaPulumi ? computeSha1ForHelmRelease(
+                nodeHealthCheckerHelmChartPath
+            ).digest('hex') : "",
+        },
+    });
+}
 
-// export const oidcProvider = validator.openidConnectProvider;
-// export const workspace = workspaceName;
+export const oidcProvider = validator.openidConnectProvider;
+export const workspace = workspaceName;
