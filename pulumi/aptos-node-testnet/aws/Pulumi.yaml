@@ -6,6 +6,3 @@ runtime:
     typescript: true
 main: ./src
 config:
-  # pulumi:disable-default-providers:
-  #   - aws
-  #   - kubernetes
