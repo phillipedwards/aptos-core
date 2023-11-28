@@ -1,4 +1,4 @@
-name: archive
+name: aptosNodeTestNetGcp
 description: TODO
 runtime:
   name: nodejs

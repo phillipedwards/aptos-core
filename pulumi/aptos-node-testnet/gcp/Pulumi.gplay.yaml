@@ -1,0 +1,8 @@
+config:
+  aptosNodeTestNetGcp:project: geoff-miller-pulumi-corp-play
+  aptosNodeTestNetGcp:region: us-central1
+  aptosNodeTestNetGcp:zone: us-central1-a
+  gcp:project: geoff-miller-pulumi-corp-play
+  gcp:region: us-central1
+  gcp:zone: us-central1-a
+  aptos:validatorName: gmvalidatortn

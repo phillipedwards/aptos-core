@@ -125,10 +125,11 @@ const gkeMaintenancePolicy = config.getObject<{ recurringWindow?: { endTime?: st
     },
 };
 
-const genesisHelmChartPath = std.abspath({ input: "../../helm/genesis" });
-const forgeHelmChartPath = std.abspath({ input: "../../helm/forge" });
-const chaosMeshHelmChartPath = std.abspath({ input: "../../helm/chaos" });
-const testnetAddonsHelmChartPath = std.abspath({ input: "../../helm/testnet-addons" });
+const relativePathToHelmDir = "../../../../helm";
+const genesisHelmChartPath = std.abspath({ input: `${relativePathToHelmDir}/genesis` });
+const forgeHelmChartPath = std.abspath({ input: `${relativePathToHelmDir}/forge` });
+const chaosMeshHelmChartPath = std.abspath({ input: `${relativePathToHelmDir}/chaos` });
+const testnetAddonsHelmChartPath = std.abspath({ input: `${relativePathToHelmDir}/testnet-addons` });
 
 const workspaceName = workspaceNameOverride != "" ? workspaceNameOverride : pulumi.getStack();
 const mychainName = chainName != "" ? chainName : pulumi.interpolate`${workspaceName}net`;
