@@ -11,7 +11,6 @@ export interface NodePoolConfig {
 
 export interface NodeGroupConfig {
     name: string;
-    // tags?: pulumi.Input<aws.ec2.Tag[]>;
     nodePoolConfig: NodePoolConfig;
     kubernetesVersion: pulumi.Input<string>;
 }
@@ -46,15 +45,8 @@ class NodeGroup extends pulumi.ComponentResource {
                     },
                 },
             ],
-            // TODO tags for resources created by launch template
-            // TODO tags for the launch template itself
             tagSpecifications: [
                 {
-                    // resourceType: "instance",
-                    // tags: pulumi.all([
-                    //     args.tags,
-                    //     { "Name": `${args.name}-instance` },
-                    // ]).apply(([tags, nameTag]) => ({ ...tags, ...nameTag })),
                 },
             ],
         }, { parent: this });
@@ -127,8 +119,6 @@ export class Cluster extends pulumi.ComponentResource {
     public readonly utilitiesNodeGroup: NodeGroup;
     public readonly validatorsNodeGroup: NodeGroup;
     public readonly ebsDriverRole: aws.iam.Role;
-    // public readonly eksNodeGroupRole: aws.iam.Role;
-    // public readonly eksNodeGroupRolePolicyAttachment: aws.iam.RolePolicyAttachment;
     public readonly eksAddon: aws.eks.Addon;
     public readonly cloudwatchLogGroup: aws.cloudwatch.LogGroup;
     public readonly openidConnectProvider: aws.iam.OpenIdConnectProvider;
@@ -205,26 +195,6 @@ export class Cluster extends pulumi.ComponentResource {
                 "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy",
             ]
         }, { parent: this });
-
-        // // Create the IAM role for the EKS node group
-        // this.eksNodeGroupRole = new aws.iam.Role(`eksNodeGroup`, {
-        //     name: 'eksNodeGroup',
-        //     path: '/',
-        //     assumeRolePolicy: JSON.stringify({
-        //         Version: '2012-10-17',
-        //         Statement: [{
-        //             Effect: 'Allow',
-        //             Principal: {
-        //                 Service: 'ec2.amazonaws.com'
-        //             },
-        //             Action: 'sts:AssumeRole'
-        //         }]
-        //     }),
-        //     managedPolicyArns: [
-        //         "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-        //         "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
-        //     ],
-        // }, { parent: this });
 
         // Create the EKS node group for utilities
         this.utilitiesNodeGroup = new NodeGroup(`utilities`, {

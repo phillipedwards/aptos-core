@@ -20,4 +20,4 @@ config:
     # - "usw2-az3"
   aws:profile: "ce_admin"
   aws:region: "us-west-2"
-  aws:defaultTags: '{ "Pulumi": "validator"}'
+  # aws:defaultTags: '{ "Pulumi": "validator"}'

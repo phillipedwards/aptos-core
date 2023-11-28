@@ -67,7 +67,7 @@ export const utilityInstanceEnableTaint = config.getBoolean("utilityInstanceEnab
 
 // Validator Node Configurations
 export const validatorInstanceType = config.get("validatorInstanceType") || "c6i.8xlarge" as pulumi.Input<string>;
-export const validatorInstanceNum = config.getNumber("validatorInstanceNum") || 2 as pulumi.Input<number>;
+export const validatorInstanceNum = config.getNumber("validatorInstanceNum") || 1 as pulumi.Input<number>;
 export const validatorInstanceMinNum = config.getNumber("validatorInstanceMinNum") || 1 as pulumi.Input<number>;
 export const validatorInstanceMaxNum = config.getNumber("validatorInstanceMaxNum") || 1 as pulumi.Input<number>;
 export const validatorInstanceEnableTaint = config.getBoolean("validatorInstanceEnableTaint") || false as pulumi.Input<boolean>;

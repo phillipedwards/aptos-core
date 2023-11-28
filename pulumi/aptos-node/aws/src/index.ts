@@ -1,20 +1,21 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
+import * as awsconfig from "../../../lib/aws";
 import { AptosNodeAWS } from "./aptosNodeAWS";
 import * as transformations from './transformation';
 import * as config from "./config";
+import {
+    computeSha1ForHelmRelease,
+    aliasTransformation,
+    setAWSProviderOnEachAWSResource,
+    setK8sProviderOnEachK8sResource,
+} from "../../../lib/helpers"
 
-// Register the alias transformation on the stack to import from `pulumi import from...`
+// Register transformations
 pulumi.log.info(`Registering aliasTransformation transformation`);
-pulumi.runtime.registerStackTransformation(transformations.aliasTransformation);
-// Register the addImports transformation on the stack to import from other state
-pulumi.log.info(`Registering addImports transformation`);
-pulumi.runtime.registerStackTransformation(transformations.addImports);
-// pulumi.log.info(`Registering commonTags transformation`);
-// pulumi.runtime.registerStackTransformation(transformations.commonTags);
-// pulumi.runtime.registerStackTransformation(transformations.isTaggableAWS);
+pulumi.runtime.registerStackTransformation(aliasTransformation);
 pulumi.log.info(`Registering setAWSProviderOnEachAWSResource transformation`);
-pulumi.runtime.registerStackTransformation(transformations.setAWSProviderOnEachAWSResource);
+pulumi.runtime.registerStackTransformation(setAWSProviderOnEachAWSResource(awsconfig.awsProvider));
 
 const aptosNodeAWS = new AptosNodeAWS("aptos-node-aws", {
     workspaceNameOverride: config.workspaceNameOverride,
