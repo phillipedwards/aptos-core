@@ -11,12 +11,16 @@ export interface ClusterConfig {
     name: pulumi.Input<string>;
     nodePoolConfigsForUtilities: NodePoolConfig;
     nodePoolConfigsForValidators: NodePoolConfig;
+    nodePoolConfigsForCore: NodePoolConfig;
     projectId: string;
     autoscalingConfig: autoscalingConfig;
     network: gcp.compute.Network;
+    enableDns: pulumi.Input<boolean>;
+    enableImageStreaming: pulumi.Input<boolean>;
 }
 
 export interface autoscalingConfig {
+    profile: pulumi.Input<string>;
     gkeEnableNodeAutoprovisioning: pulumi.Input<boolean>;
     gkeEnableAutoscaling: pulumi.Input<boolean>;
     gkeNodeAutoprovisioningMaxCpu: pulumi.Input<number>;
@@ -33,12 +37,14 @@ export interface NodePoolConfig {
     maxNodeCount: pulumi.Input<number>;
     minNodeCount: pulumi.Input<number>;
     name: pulumi.Input<string>;
+    sysctls: pulumi.Input<Record<string, string>>;
 }
 
 export class Cluster extends pulumi.ComponentResource {
     public readonly cluster: gcp.container.Cluster;
     public readonly utilitiesNodePool: gcp.container.NodePool;
     public readonly validatorsNodePool: gcp.container.NodePool;
+    public readonly coreNodePool: gcp.container.NodePool;
     public readonly kubeconfig: pulumi.Output<k8sClientLib.KubeConfig>;
 
     constructor(name: string, config: ClusterConfig, opts?: pulumi.ComponentResourceOptions) {
@@ -48,14 +54,19 @@ export class Cluster extends pulumi.ComponentResource {
         this.cluster = new gcp.container.Cluster(`aptos_1`, {
             name: config.name,
             location: config.location,
+            nodeLocations: [config.location],
             network: config.network.id,
             removeDefaultNodePool: true,
             initialNodeCount: 1,
             loggingService: "logging.googleapis.com/kubernetes",
             monitoringService: "monitoring.googleapis.com/kubernetes",
 
+            costManagementConfig: {
+                enabled: true,
+            },
+
             releaseChannel: {
-                channel: "REGULAR",
+                channel: "STABLE",
             },
 
             podSecurityPolicyConfig: {
@@ -100,6 +111,7 @@ export class Cluster extends pulumi.ComponentResource {
 
             clusterAutoscaling: {
                 enabled: config.autoscalingConfig.gkeEnableAutoscaling,
+                autoscalingProfile: config.autoscalingConfig.profile,
                 resourceLimits: [
                     {
                         resourceType: "cpu",
@@ -113,16 +125,113 @@ export class Cluster extends pulumi.ComponentResource {
                     },
                 ],
             },
-
             maintenancePolicy: config.gkeMaintenancePolicy || undefined,
+            dnsConfig: config.enableDns ? {
+                clusterDns: "CLOUD_DNS",
+                clusterDnsScope: "CLUSTER_SCOPE",
+            } : {},
+            monitoringConfig: {
+                managedPrometheus: {
+                    enabled: true,
+                },
+                enableComponents: [
+                    "APISERVER",
+                    "CONTROLLER_MANAGER",
+                    "DAEMONSET",
+                    "DEPLOYMENT",
+                    "HPA",
+                    "POD",
+                    "SCHEDULER",
+                    "STATEFULSET",
+                    "STORAGE",
+                    "SYSTEM_COMPONENTS",
+                ],
+            },
+            nodePoolDefaults: {
+                nodeConfigDefaults: {
+                    gcfsConfig: {
+                        enabled: config.enableImageStreaming,
+                    },
+                },
+            },
+        }, {
+            parent: this,
+            ignoreChanges: ["privateClusterConfig"],
+            protect: false,
+        });
+
+        // Create new node pools for utilities and validators and core
+        this.coreNodePool = new gcp.container.NodePool(`core`, {
+            name: config.nodePoolConfigsForCore.name,
+            location: config.location,
+            cluster: this.cluster.name,
+            nodeCount: config.nodePoolConfigsForCore.minNodeCount,
+            autoscaling: config.autoscalingConfig.gkeEnableAutoscaling ? {
+                minNodeCount: config.nodePoolConfigsForCore.minNodeCount,
+                maxNodeCount: config.nodePoolConfigsForCore.maxNodeCount,
+            } : {},
+            nodeConfig: {
+                machineType: config.nodePoolConfigsForCore.machineType,
+                imageType: "COS_CONTAINERD",
+                diskSizeGb: config.nodePoolConfigsForCore.diskSizeGb,
+                serviceAccount: config.googleServiceAccountEmail,
+                tags: ["core"],
+                oauthScopes: ["https://www.googleapis.com/auth/cloud-platform"],
+                workloadMetadataConfig: {
+                    mode: "GKE_METADATA",
+                },
+                shieldedInstanceConfig: {
+                    enableIntegrityMonitoring: true,
+                    enableSecureBoot: true,
+                },
+                gcfsConfig: {
+                    enabled: false,
+                },
+                gvnic: {
+                    enabled: true,
+                },
+                kubeletConfig: {
+                    cpuManagerPolicy: "none",
+                },
+            },
         }, { parent: this });
 
-        // Create new node pools for utilities and validators
         this.utilitiesNodePool = new gcp.container.NodePool(`utilities`, {
             name: config.nodePoolConfigsForUtilities.name,
             location: config.location,
             cluster: this.cluster.name,
             nodeCount: config.nodePoolConfigsForUtilities.minNodeCount,
+            nodeConfig: {
+                machineType: config.nodePoolConfigsForUtilities.machineType,
+                imageType: "COS_CONTAINERD",
+                diskSizeGb: config.nodePoolConfigsForUtilities.diskSizeGb,
+                serviceAccount: config.googleServiceAccountEmail,
+                tags: ["utilities"],
+                oauthScopes: [
+                    "https://www.googleapis.com/auth/cloud-platform",
+                ],
+                workloadMetadataConfig: {
+                    mode: "GKE_METADATA",
+                },
+                shieldedInstanceConfig: {
+                    enableSecureBoot: true,
+                    enableIntegrityMonitoring: true,
+                },
+                gvnic: {
+                    enabled: true,
+                },
+                kubeletConfig: {
+                    cpuManagerPolicy: "none",
+                },
+                linuxNodeConfig: {
+                    sysctls: config.nodePoolConfigsForUtilities.sysctls,
+                },
+                taints: config.nodePoolConfigsForUtilities.enableTaints ? [{
+                    key: "aptos.org/nodepool",
+                    value: "utilities",
+                    effect: "NO_EXECUTE",
+                }] : [],
+            },
             autoscaling: config.autoscalingConfig.gkeEnableAutoscaling ? {
                 minNodeCount: config.nodePoolConfigsForUtilities.minNodeCount,
                 maxNodeCount: config.nodePoolConfigsForUtilities.maxNodeCount,
@@ -146,12 +255,17 @@ export class Cluster extends pulumi.ComponentResource {
 
                 shieldedInstanceConfig: {
                     enableSecureBoot: true,
+                    enableIntegrityMonitoring: true,
                 },
-
-                workloadMetadataConfig: {
-                    mode: "GKE_METADATA",
+                gvnic: {
+                    enabled: true,
                 },
-
+                kubeletConfig: {
+                    cpuManagerPolicy: "none",
+                },
+                linuxNodeConfig: {
+                    sysctls: config.nodePoolConfigsForUtilities.sysctls,
+                },
                 taints: config.nodePoolConfigsForValidators.enableTaints ? [{
                     key: "aptos.org/nodepool",
                     value: "validators",

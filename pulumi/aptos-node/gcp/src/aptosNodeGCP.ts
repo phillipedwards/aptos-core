@@ -191,6 +191,7 @@ export class AptosNodeGCP extends pulumi.ComponentResource {
             network: this.network.network,
             clusterIpv4CidrBlock: config.clusterIpv4CidrBlock,
             autoscalingConfig: {
+                profile: config.autoscalingConfig.profile,
                 gkeAutoscalingMaxNodeCount: config.autoscalingConfig.maxNodeCount,
                 gkeAutoscalingMinNodeCount: config.autoscalingConfig.minNodeCount,
                 gkeAutoscalingDesiredNodeCount: config.autoscalingConfig.desiredNodeCount,
@@ -204,6 +205,7 @@ export class AptosNodeGCP extends pulumi.ComponentResource {
             k8sApiSources: config.k8sApiSources,
             nodePoolConfigsForUtilities: {
                 name: "utilities",
+                sysctls: config.utilityNodeConfig.sysctls,
                 diskSizeGb: config.utilityNodeConfig.diskSizeGb,
                 enableTaints: config.utilityNodeConfig.enableTaint,
                 machineType: config.utilityNodeConfig.machineType,
@@ -212,12 +214,24 @@ export class AptosNodeGCP extends pulumi.ComponentResource {
             },
             nodePoolConfigsForValidators: {
                 name: "validators",
+                sysctls: config.validatorNodeConfig.sysctls,
                 diskSizeGb: config.validatorNodeConfig.diskSizeGb,
                 enableTaints: config.validatorNodeConfig.enableTaint,
                 machineType: config.validatorNodeConfig.machineType,
                 maxNodeCount: config.autoscalingConfig.maxNodeCount,
                 minNodeCount: config.validatorNodeConfig.instanceNum,
             },
+            nodePoolConfigsForCore: {
+                name: "core",
+                sysctls: config.coreNodeConfig.sysctls,
+                diskSizeGb: config.coreNodeConfig.diskSizeGb,
+                enableTaints: config.coreNodeConfig.enableTaint,
+                machineType: config.coreNodeConfig.machineType,
+                maxNodeCount: config.autoscalingConfig.maxNodeCount,
+                minNodeCount: config.coreNodeConfig.instanceNum,
+            },
+            enableDns: config.enableCloudDNS,
+            enableImageStreaming: config.enableImageStreaming,
         }, {
             dependsOn: [
                 this.network,
@@ -241,13 +255,11 @@ export class AptosNodeGCP extends pulumi.ComponentResource {
             validatorHelmConfig: config.validatorHelmConfig,
             loggerHelmConfig: config.loggerHelmConfig,
             monitoringHelmConfig: config.monitoringHelmConfig,
-            enableMonitoring: config.enableMonitoring,
-            enableLogger: config.enableLogging,
-            enableNodeExporter: config.enableNodeExporter,
             cluster: this.cluster.cluster,
             utilityNodePool: this.cluster.utilitiesNodePool,
             manageViaPulumi: config.manageViaPulumi,
             workspace: workspace,
+            gkeEnableTaint: config.validatorNodeConfig.enableTaint,
         }, {
             dependsOn: [
                 this.cluster,
@@ -271,16 +283,13 @@ export class AptosNodeGCP extends pulumi.ComponentResource {
             }, {
                 dependsOn: [
                     this.kubernetes,
-                    this.kubernetes.validatorHelmRelease,
-                    this.kubernetes.monitoringHelmRelease,
-                    this.kubernetes.loggerHelmRelease,
-                    this.kubernetes.nodeExporterHelmRelease,
+                    this.kubernetes.helmReleaseForValidator,
                 ].filter(x => x !== undefined) as pulumi.Resource[],
                 parent: this
             });
         }
 
-        this.helmReleaseName = this.kubernetes.validatorHelmRelease.name;
+        this.helmReleaseName = this.kubernetes.helmReleaseForValidator.name;
         this.gkeClusterEndpoint = this.cluster.cluster.endpoint;
         this.gkeClusterCaCertificate = this.cluster.cluster.masterAuth.clusterCaCertificate;
         this.gkeClusterWorkloadIdentityConfig = this.cluster.cluster.workloadIdentityConfig.apply(wic => JSON.stringify(wic));

@@ -41,12 +41,16 @@ const loggerDefaultHelmConfig: Partial<helmConfig> = {
 export interface NodeConfig {
     machineType: pulumi.Input<string>;
     diskSizeGb: pulumi.Input<number>;
+    diskType: pulumi.Input<string>;
+    sysctls: pulumi.Input<Record<string, string>>;
     instanceNum: pulumi.Input<number>;
     enableTaint: pulumi.Input<boolean>;
 }
 
 const validatorDefaultNodeConfig: Partial<NodeConfig> = {
     machineType: "n2-standard-32",
+    sysctls: {},
+    diskType: "pd-standard",
     diskSizeGb: 20,
     instanceNum: 2,
     enableTaint: false,
@@ -54,6 +58,17 @@ const validatorDefaultNodeConfig: Partial<NodeConfig> = {
 
 const utilitiesDefaultNodeConfig: Partial<NodeConfig> = {
     machineType: "n2-standard-8",
+    sysctls: {},
+    diskType: "pd-standard",
+    diskSizeGb: 20,
+    instanceNum: 1,
+    enableTaint: false,
+};
+
+const coreDefaultNodeConfig: Partial<NodeConfig> = {
+    machineType: "n2-standard-8",
+    sysctls: {},
+    diskType: "pd-standard",
     diskSizeGb: 20,
     instanceNum: 1,
     enableTaint: false,
@@ -64,6 +79,7 @@ export interface autoscalingConfig {
     minNodeCount: pulumi.Input<number>;
     maxNodeCount: pulumi.Input<number>;
     desiredNodeCount: pulumi.Input<number>;
+    profile: pulumi.Input<string>;
 }
 
 export interface autoprovisioningConfig {
@@ -75,14 +91,15 @@ export interface autoprovisioningConfig {
 const defaultAutoscalingConfig: Partial<autoscalingConfig> = {
     enabled: false,
     minNodeCount: 1,
-    maxNodeCount: 10,
+    maxNodeCount: 250,
     desiredNodeCount: 1,
+    profile: "OPTIMIZE_UTILIZATION",
 };
 
 const defaultAutoprovisioningConfig: Partial<autoprovisioningConfig> = {
     enabled: false,
-    maxCpu: 10,
-    maxMemory: 100,
+    maxCpu: 500,
+    maxMemory: 2000,
 };
 
 export interface gkeMaintenancePolicy {
@@ -120,7 +137,6 @@ const defaultDnsConfig: Partial<DnsConfig> = {
 
 
 // General Configurations
-export const clusterBootstrap = new pulumi.Config("aptos").getBoolean("bootstrap") || false;
 export const workspaceNameOverride = new pulumi.Config("aptos").get("workspaceNameOverride") || "";
 export const autoscalingConfig = {
     ...defaultAutoscalingConfig,
@@ -186,3 +202,10 @@ export const validatorNodeConfig = {
     ...validatorDefaultNodeConfig,
     ...new pulumi.Config("validator").getObject("node") as NodeConfig,
 };
+export const coreNodeConfig = {
+    ...coreDefaultNodeConfig,
+    ...new pulumi.Config("core").getObject("node") as NodeConfig,
+};
+// TODO: Node Locations
+export const enableCloudDNS = new pulumi.Config("node").getBoolean("enableCloudDNS") || false;
+export const enableImageStreaming = new pulumi.Config("node").getBoolean("enableImageStreaming") || false;

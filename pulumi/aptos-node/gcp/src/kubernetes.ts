@@ -13,11 +13,9 @@ export interface KubernetesConfig {
     chainId: pulumi.Input<string>
     chainName: string
     cluster: gcp.container.Cluster;
-    enableLogger: pulumi.Input<boolean>
-    enableMonitoring: pulumi.Input<boolean>
-    enableNodeExporter: pulumi.Input<boolean>
     era: pulumi.Input<Number>
     gkeEnableNodeAutoprovisioning: pulumi.Input<string>
+    gkeEnableTaint: pulumi.Input<boolean>
     loggerHelmConfig: helmConfig
     monitoringHelmConfig: helmConfig
     nodeExporterHelmValues: pulumi.Input<any>
@@ -33,10 +31,7 @@ export interface KubernetesConfig {
 
 export class Kubernetes extends pulumi.ComponentResource {
     public readonly ssdStorageClass: k8s.storage.v1.StorageClass;
-    public readonly validatorHelmRelease: helm.Release;
-    public readonly loggerHelmRelease: helm.Release | undefined;
-    public readonly monitoringHelmRelease: helm.Release | undefined;
-    public readonly nodeExporterHelmRelease: helm.Release | undefined;
+    public readonly helmReleaseForValidator: helm.Release;
     public readonly provider: k8s.Provider;
 
     constructor(name: string, args: KubernetesConfig, opts?: pulumi.ComponentResourceOptions) {
@@ -117,9 +112,9 @@ export class Kubernetes extends pulumi.ComponentResource {
                 "storage": {
                     "class": this.ssdStorageClass.metadata.name,
                 },
-                "nodeSelector": args.gkeEnableNodeAutoprovisioning ? {} : {
+                "nodeSelector": args.gkeEnableTaint ? {
                     "cloud.google.com/gke-nodepool": args.utilityNodePool.name,
-                },
+                } : {},
                 "tolerations": [{
                     "key": "aptos.org/nodepool",
                     "value": "validators",
@@ -130,9 +125,9 @@ export class Kubernetes extends pulumi.ComponentResource {
                 "storage": {
                     "class": this.ssdStorageClass.metadata.name,
                 },
-                "nodeSelector": args.gkeEnableNodeAutoprovisioning ? {} : {
+                "nodeSelector": args.gkeEnableTaint ? {
                     "cloud.google.com/gke-nodepool": args.validatorNodePool.name,
-                },
+                } : {},
                 "tolerations": [{
                     "key": "aptos.org/nodepool",
                     "value": "validators",
@@ -140,9 +135,15 @@ export class Kubernetes extends pulumi.ComponentResource {
                 }],
             },
             "haproxy": {
-                "nodeSelector": args.gkeEnableNodeAutoprovisioning ? {} : {
+                "nodeSelector": args.gkeEnableTaint ? {
                     "cloud.google.com/gke-nodepool": args.utilityNodePool.name,
-                },
+
+                } : {},
+                "tolerations": [{
+                    "key": "aptos.org/nodepool",
+                    "value": "utilities",
+                    "effect": "NoExecute",
+                }]
             },
             "service": {
             },
@@ -161,7 +162,7 @@ export class Kubernetes extends pulumi.ComponentResource {
             }
         }
 
-        this.validatorHelmRelease = new helm.Release(`validator`, {
+        this.helmReleaseForValidator = new helm.Release(`validator`, {
             name: helmReleaseName,
             chart: pulumi.interpolate`${__dirname}${args.aptosNodeHelmChartPath}`,
             maxHistory: 5,
@@ -172,108 +173,5 @@ export class Kubernetes extends pulumi.ComponentResource {
             provider: this.provider,
             parent: this
         });
-
-        if (args.enableLogger) {
-            let loggerHelmValues: pulumi.Input<{ [key: string]: any }> = {
-                "logger": {
-                    "name": "aptos-logger",
-                },
-                "chain": {
-                    "name": args.chainName,
-                },
-                "serviceAccount": {
-                    "create": false,
-                    "name": pulumi.interpolate`${helmReleaseName}-aptos-node-validator`,
-                },
-            }
-
-            if (args.loggerHelmConfig.valuesFilePath) {
-                const filePath = path.resolve(__dirname + args.loggerHelmConfig.valuesFilePath.toString());
-                if (fs.existsSync(filePath)) {
-                    const fileContents = fs.readFileSync(filePath, "utf8");
-                    const fileValues = JSON.parse(fileContents);
-                    loggerHelmValues = pulumi.output(fileValues).apply(fileValues => {
-                        return pulumi.all([loggerHelmValues, fileValues]).apply(([values, fileValues]) => {
-                            return Object.assign({}, values, fileValues);
-                        });
-                    });
-                }
-            }
-
-            this.loggerHelmRelease = new helm.Release(`logger`, {
-                name: pulumi.interpolate`${helmReleaseName}-log`,
-                chart: pulumi.interpolate`${__dirname}${args.loggerHelmConfig.chartPath}`,
-                maxHistory: 10,
-                version: "0.2.0",
-                timeout: 0,
-                values: loggerHelmValues,
-            }, {
-                provider: this.provider,
-                parent: this
-            });
-        }
-
-        if (args.enableMonitoring) {
-            let monitoringHelmValues: pulumi.Input<{ [key: string]: any }> = {
-                "chain": {
-                    "name": args.chainName,
-                },
-                "validator": {
-                    "name": args.validatorName,
-                },
-                "monitoring": {
-                    "prometheus": {
-                        "storage": {
-                            "class": this.ssdStorageClass.metadata.name,
-                        },
-                    },
-                },
-            }
-
-            if (args.monitoringHelmConfig.valuesFilePath) {
-                const filePath = path.resolve(args.monitoringHelmConfig.valuesFilePath.toString());
-                if (fs.existsSync(filePath)) {
-                    const fileContents = fs.readFileSync(filePath, "utf8");
-                    const fileValues = JSON.parse(fileContents);
-                    monitoringHelmValues = pulumi.output(fileValues).apply(fileValues => {
-                        return pulumi.all([monitoringHelmValues, fileValues]).apply(([values, fileValues]) => {
-                            return Object.assign({}, values, fileValues);
-                        });
-                    });
-                }
-            }
-
-            this.monitoringHelmRelease = new helm.Release(`monitoring`, {
-                name: pulumi.interpolate`${helmReleaseName}-mon`,
-                chart: pulumi.interpolate`${__dirname}${args.monitoringHelmConfig.chartPath}`,
-                maxHistory: 10,
-                version: "0.2.0",
-                timeout: 0,
-                values: monitoringHelmValues,
-            }, {
-                provider: this.provider,
-                parent: this
-            });
-        }
-
-        if (args.enableNodeExporter) {
-            this.nodeExporterHelmRelease = new helm.Release(`node-exporter`, {
-                name: "prometheus-node-exporter",
-                repositoryOpts: {
-                    repo: "https://prometheus-community.github.io/helm-charts",
-                },
-                chart: "prometheus-node-exporter",
-                version: "4.0.0",
-                timeout: 0,
-                namespace: "kube-system",
-                maxHistory: 5,
-                waitForJobs: false,
-
-                values: args.nodeExporterHelmValues,
-            }, {
-                provider: this.provider,
-                parent: this
-            });
-        }
     }
 }
